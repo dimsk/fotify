@@ -113,12 +113,38 @@ export class CalendarSyncService {
         `Account ${accountId}: syncing events for ${enabledCalendars.length} enabled calendar(s) (${calendars.length - enabledCalendars.length} disabled, skipped)`,
       );
       const { start, end } = syncWindow();
+      const failedCalendars: string[] = [];
+      let syncedCalendars = 0;
       for (const calendar of enabledCalendars) {
-        await this.syncCalendarEvents(ctx, calendar, start, end);
+        try {
+          await this.syncCalendarEvents(ctx, calendar, start, end);
+          syncedCalendars += 1;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          failedCalendars.push(`${calendar.name}: ${message}`);
+          this.logger.warn(
+            `Calendar ${calendar.id} ("${calendar.name}") sync failed: ${message}`,
+          );
+        }
       }
 
-      await this.accountRepo.update(accountId, { status: 'idle', lastSyncError: null, lastSyncedAt: new Date() });
-      this.logger.log(`Sync completed for account ${accountId}`);
+      if (failedCalendars.length > 0 && syncedCalendars === 0 && enabledCalendars.length > 0) {
+        throw new Error(failedCalendars.join('; '));
+      }
+
+      const partialError =
+        failedCalendars.length > 0
+          ? `Einige Kalender konnten nicht synchronisiert werden: ${failedCalendars.join('; ')}`
+          : null;
+      await this.accountRepo.update(accountId, {
+        status: 'idle',
+        lastSyncError: partialError,
+        lastSyncedAt: new Date(),
+      });
+      this.logger.log(
+        `Sync completed for account ${accountId}` +
+          (failedCalendars.length > 0 ? ` with ${failedCalendars.length} calendar failure(s)` : ''),
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(
