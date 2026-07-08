@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { MapPin, Star } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import type { CalendarTodayEvent, CalendarTodayResponse } from '../api/types';
 import { formatEventTime } from './format-date';
@@ -11,6 +12,7 @@ const CALENDAR_REFRESH_MS = 120_000;
 const MAX_VISIBLE_PER_DAY = 4;
 
 export function CalendarOverlay() {
+  const { t } = useTranslation();
   const [data, setData] = useState<CalendarTodayResponse | null>(null);
 
   useEffect(() => {
@@ -42,13 +44,14 @@ export function CalendarOverlay() {
 
   return (
     <div className={`${styles.card} ${shown ? styles.visible : styles.hidden}`} aria-hidden={!shown}>
-      <DaySection label="Heute" events={todayEvents} />
-      <DaySection label="Morgen" events={tomorrowEvents} />
+      <DaySection label={t('slideshow.today')} events={todayEvents} />
+      <DaySection label={t('slideshow.tomorrow')} events={tomorrowEvents} />
     </div>
   );
 }
 
 function DaySection({ label, events }: { label: string; events: CalendarTodayEvent[] }) {
+  const { t } = useTranslation();
   if (events.length === 0) return null;
   const overflow = events.length - MAX_VISIBLE_PER_DAY;
 
@@ -60,7 +63,7 @@ function DaySection({ label, events }: { label: string; events: CalendarTodayEve
           <div className={`${styles.row} ${ev.important ? styles.important : ''}`}>
             <span className={styles.dot} style={{ background: ev.color }} />
             {ev.important && <Star size={11} fill={ev.color} color={ev.color} />}
-            <span className={styles.time}>{ev.isAllDay ? 'Ganztägig' : formatEventTime(ev.startAt)}</span>
+            <span className={styles.time}>{ev.isAllDay ? t('slideshow.allDay') : formatEventTime(ev.startAt)}</span>
             <span className={styles.title}>{ev.title}</span>
           </div>
           {ev.location && (
@@ -71,7 +74,7 @@ function DaySection({ label, events }: { label: string; events: CalendarTodayEve
           )}
         </div>
       ))}
-      {overflow > 0 && <span className={styles.more}>+{overflow} weitere</span>}
+      {overflow > 0 && <span className={styles.more}>{t('slideshow.more', { count: overflow })}</span>}
     </div>
   );
 }

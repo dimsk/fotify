@@ -24,6 +24,7 @@ export type PhotoCaptionPosition = 'bottom-left' | 'bottom-right';
 export type GrainEffect = 'none' | 'light' | 'strong';
 export type DateOverlayMode = 'always' | 'sometimes';
 export type WeatherOverlayMode = 'always' | 'sometimes';
+export type Language = 'en' | 'de';
 
 export type CollageLayoutType =
   | 'heartCutout'
@@ -44,6 +45,10 @@ export type CollageLayoutSelection = CollageLayoutType | 'random';
 export class Settings {
   @PrimaryColumn({ type: 'int', default: 1 })
   id: number;
+
+  /** UI language for admin/slideshow clients. English is the public default. */
+  @Column({ type: 'text', default: 'en' })
+  language: Language;
 
   /**
    * The pool of effects the slideshow picks from. A single entry means

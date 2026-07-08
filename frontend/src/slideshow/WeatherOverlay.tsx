@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Cloud,
   CloudDrizzle,
@@ -28,8 +29,6 @@ interface WeatherOverlayProps {
   timedVisible: boolean;
 }
 
-const DAY_FORMATTER = new Intl.DateTimeFormat('de-DE', { weekday: 'short' });
-
 const ICONS: Record<WeatherIcon, typeof Sun> = {
   sun: Sun,
   moon: Moon,
@@ -47,6 +46,7 @@ export function WeatherOverlay({
   mode,
   timedVisible,
 }: WeatherOverlayProps) {
+  const { t, i18n } = useTranslation();
   const [forecast, setForecast] = useState<WeatherForecast | null>(null);
 
   useEffect(() => {
@@ -93,7 +93,7 @@ export function WeatherOverlay({
 
       <div className={styles.meta}>
         <span>
-          Gefühlt {Math.round(forecast.current.apparentTemperatureC)}°
+          {t('weather.feelsLike', { temp: Math.round(forecast.current.apparentTemperatureC) })}
         </span>
         <span>
           <Wind size={13} /> {Math.round(forecast.current.windSpeedKmh)} km/h
@@ -109,7 +109,7 @@ export function WeatherOverlay({
           return (
             <div key={day.date} className={styles.day}>
               <span className={styles.dayName}>
-                {DAY_FORMATTER.format(new Date(day.date))}
+                {new Intl.DateTimeFormat(i18n.language, { weekday: 'short' }).format(new Date(day.date))}
               </span>
               <DayIcon className={styles.dayIcon} strokeWidth={1.8} />
               <span className={styles.dayTemp}>

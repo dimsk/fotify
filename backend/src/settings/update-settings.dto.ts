@@ -13,6 +13,7 @@ import {
   CollageLayoutSelection,
   DateOverlayMode,
   GrainEffect,
+  Language,
   PhotoCaptionPosition,
   PhotoFrameStyle,
   ShuffleMode,
@@ -48,6 +49,7 @@ const CAPTION_POSITIONS: PhotoCaptionPosition[] = [
 ];
 const GRAIN_EFFECTS: GrainEffect[] = ['none', 'light', 'strong'];
 const DATE_OVERLAY_MODES: DateOverlayMode[] = ['always', 'sometimes'];
+const LANGUAGES: Language[] = ['en', 'de'];
 const COLLAGE_LAYOUTS: CollageLayoutSelection[] = [
   'heartCutout',
   'heartMosaic',
@@ -63,6 +65,10 @@ const COLLAGE_LAYOUTS: CollageLayoutSelection[] = [
 ];
 
 export class UpdateSettingsDto {
+  @IsOptional()
+  @IsIn(LANGUAGES)
+  language?: Language;
+
   @IsOptional()
   @IsArray()
   @ArrayMinSize(1)

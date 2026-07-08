@@ -1,22 +1,23 @@
-const formatter = new Intl.DateTimeFormat('de-DE', {
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
+import i18n from '../i18n';
 
 export function formatCapturedAt(capturedAt: string | null): string | null {
   if (!capturedAt) return null;
   const date = new Date(capturedAt);
   if (Number.isNaN(date.getTime())) return null;
-  return formatter.format(date);
+  return new Intl.DateTimeFormat(i18n.language, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
 }
 
-const eventTimeFormatter = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' });
-
 export function formatEventTime(startAt: string): string {
-  return eventTimeFormatter.format(new Date(startAt));
+  return new Intl.DateTimeFormat(i18n.language, {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(startAt));
 }
 
 /**

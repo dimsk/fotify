@@ -1,5 +1,6 @@
 import { Card, ColorInput, Group, Stack, Switch, Text, Title } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import type { CalendarAccount } from '../../api/types';
 
@@ -8,8 +9,9 @@ interface CalendarSelectionSectionProps {
 }
 
 export function CalendarSelectionSection({ accounts }: CalendarSelectionSectionProps) {
+  const { t } = useTranslation();
   if (accounts.length === 0) {
-    return <Text c="dimmed">Zuerst ein Konto verbinden, um Kalender auszuwählen.</Text>;
+    return <Text c="dimmed">{t('calendar.connectAccountFirst')}</Text>;
   }
 
   return (
@@ -22,6 +24,7 @@ export function CalendarSelectionSection({ accounts }: CalendarSelectionSectionP
 }
 
 function AccountCalendars({ account }: { account: CalendarAccount }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data: calendars = [] } = useQuery({
     queryKey: ['calendar', 'calendars', account.id],
@@ -47,7 +50,7 @@ function AccountCalendars({ account }: { account: CalendarAccount }) {
       </Title>
       {calendars.length === 0 ? (
         <Text size="sm" c="dimmed">
-          Noch keine Kalender gefunden — Synchronisierung läuft.
+          {t('calendar.noCalendars')}
         </Text>
       ) : (
         <Stack gap="xs">

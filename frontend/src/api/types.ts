@@ -87,6 +87,7 @@ export type PhotoCaptionPosition = 'bottom-left' | 'bottom-right';
 export type GrainEffect = 'none' | 'light' | 'strong';
 export type DateOverlayMode = 'always' | 'sometimes';
 export type WeatherOverlayMode = 'always' | 'sometimes';
+export type Language = 'en' | 'de';
 export type WeatherIcon =
   | 'sun'
   | 'moon'
@@ -113,6 +114,7 @@ export type CollageLayoutSelection = CollageLayoutType | 'random';
 
 export interface Settings {
   id: number;
+  language: Language;
   transitionEffects: TransitionEffect[];
   transitionDurationMs: number;
   cinematicChance: number;
@@ -149,6 +151,7 @@ export interface Settings {
 }
 
 export interface UpdateSettingsInput {
+  language?: Language;
   transitionEffects?: TransitionEffect[];
   transitionDurationMs?: number;
   cinematicChance?: number;

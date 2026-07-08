@@ -11,15 +11,12 @@ import {
 import { notifications } from '@mantine/notifications';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Clock3 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import type { DateOverlayMode } from '../../api/types';
 
-const DATE_MODE_OPTIONS: { value: DateOverlayMode; label: string }[] = [
-  { value: 'always', label: 'Immer anzeigen' },
-  { value: 'sometimes', label: 'Bei manchen Bildern einblenden' },
-];
-
 export function DatePage() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data: settings } = useQuery({
     queryKey: ['settings'],
@@ -39,30 +36,35 @@ export function DatePage() {
     onSuccess: (updated) => {
       queryClient.setQueryData(['settings'], updated);
       notifications.show({
-        message: 'Datumseinstellungen gespeichert',
+        message: t('date.saved'),
         color: 'teal',
       });
     },
   });
 
+  const dateModeOptions: { value: DateOverlayMode; label: string }[] = [
+    { value: 'always', label: t('options.overlayModes.always') },
+    { value: 'sometimes', label: t('options.overlayModes.sometimes') },
+  ];
+
   return (
     <Stack>
-      <Title order={3}>Datum</Title>
+      <Title order={3}>{t('date.title')}</Title>
 
       <Card withBorder padding="lg" radius="md">
         <Stack gap="md">
           <Switch
-            label="Datum und Uhrzeit anzeigen"
-            description="Zeigt das aktuelle Datum und die Uhrzeit oben rechts in der Diashow."
+            label={t('date.show')}
+            description={t('date.showDescription')}
             checked={enabled}
             onChange={(event) => setEnabled(event.currentTarget.checked)}
           />
 
           <Select
-            label="Anzeigeverhalten"
-            description="Bei manchen Bildern wird das Datum weich eingeblendet und danach wieder ausgeblendet."
+            label={t('date.behavior')}
+            description={t('date.behaviorDescription')}
             leftSection={<Clock3 size={16} />}
-            data={DATE_MODE_OPTIONS}
+            data={dateModeOptions}
             value={mode}
             onChange={(value) => value && setMode(value as DateOverlayMode)}
             disabled={!enabled}
@@ -70,8 +72,7 @@ export function DatePage() {
           />
 
           <Text size="xs" c="dimmed">
-            Änderungen wirken sich innerhalb weniger Sekunden in der Diashow
-            aus.
+            {t('common.changesApplySoon')}
           </Text>
         </Stack>
       </Card>
@@ -86,7 +87,7 @@ export function DatePage() {
         loading={updateMutation.isPending}
         w={{ base: '100%', sm: 200 }}
       >
-        Speichern
+        {t('common.save')}
       </Button>
     </Stack>
   );

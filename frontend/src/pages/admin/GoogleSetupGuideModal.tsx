@@ -19,6 +19,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { Check, Copy, ExternalLink } from 'lucide-react';
+import { Trans, useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 
 interface GoogleSetupGuideModalProps {
@@ -34,10 +35,11 @@ interface GoogleSetupGuideModalProps {
  * Console once, then saves the resulting Client ID/Secret/public URL into
  * the database (secret encrypted, like the Apple app-password) via the form
  * below — no .env editing or backend restart needed. Afterwards, every end
- * user just clicks the "Verbinden" button and approves on Google's own
+ * user just clicks the "Connect" button and approves on Google's own
  * consent screen — no credentials typed into Fotify at any point.
  */
 export function GoogleSetupGuideModal({ opened, onClose }: GoogleSetupGuideModalProps) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   const { data: status } = useQuery({
@@ -67,7 +69,7 @@ export function GoogleSetupGuideModal({ opened, onClose }: GoogleSetupGuideModal
     onSuccess: (updated) => {
       queryClient.setQueryData(['calendar', 'google-config'], updated);
       setClientSecret('');
-      notifications.show({ message: 'Google-Zugangsdaten gespeichert', color: 'teal' });
+      notifications.show({ message: t('calendar.googleCredentialsSaved'), color: 'teal' });
     },
   });
 
@@ -79,43 +81,34 @@ export function GoogleSetupGuideModal({ opened, onClose }: GoogleSetupGuideModal
     (clientSecret.length > 0 || !!status?.configured);
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Google Kalender einrichten" size="lg">
+    <Modal opened={opened} onClose={onClose} title={t('calendar.setupGoogle')} size="lg">
       <Stack gap="md">
         <Text size="sm" c="dimmed">
-          Google verlangt für jede Anwendung eine eigene registrierte OAuth-Client-ID, bevor sie
-          Zugriff auf einen Kalender anfragen darf. Das ist ein einmaliger Einrichtungsschritt für
-          diese Fotify-Installation — Nutzer selbst geben später nur noch mit einem Klick ihre
-          Zustimmung auf der Google-Seite, ohne jemals ein Passwort bei Fotify einzugeben.
+          {t('calendar.googleIntro')}
         </Text>
 
         <List type="ordered" spacing="sm" size="sm">
           <List.Item>
             <Anchor href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">
-              Google Cloud Console → APIs &amp; Services → Credentials <ExternalLink size={12} style={{ display: 'inline', verticalAlign: 'middle' }} />
-            </Anchor>{' '}
-            öffnen und ein Projekt anlegen (oder ein vorhandenes auswählen).
+              {t('calendar.googleStep1')} <ExternalLink size={12} style={{ display: 'inline', verticalAlign: 'middle' }} />
+            </Anchor>
           </List.Item>
           <List.Item>
-            Unter „APIs &amp; Services" → „Library" nach <Code>Google Calendar API</Code> suchen und
-            aktivieren.
+            {t('calendar.googleStep2')}
           </List.Item>
           <List.Item>
-            Unter „OAuth consent screen" einen externen Consent-Screen anlegen und den Scope{' '}
-            <Code>calendar.readonly</Code> hinzufügen. Solange die App im Status „Testing" bleibt,
-            muss das eigene Google-Konto als Testnutzer eingetragen werden.
+            {t('calendar.googleStep3')}
           </List.Item>
           <List.Item>
-            Unter „Credentials" → „Create Credentials" → „OAuth client ID" den Typ{' '}
-            <Code>Web application</Code> wählen.
+            {t('calendar.googleStep4')}
           </List.Item>
           <List.Item>
-            Als „Authorized redirect URI" genau diese Adresse eintragen (passt sich an, wenn die
-            „Öffentliche Adresse" unten geändert wird):
+            {t('calendar.googleStep5')}
             <Group gap="xs" mt={4} wrap="nowrap">
               <Code style={{ flex: 1, wordBreak: 'break-all' }}>{redirectUri}</Code>
               <CopyButton value={redirectUri}>
                 {({ copied, copy }) => (
-                  <Tooltip label={copied ? 'Kopiert' : 'Kopieren'}>
+                  <Tooltip label={copied ? t('common.copied') : t('common.copy')}>
                     <ActionIcon variant="subtle" color={copied ? 'teal' : 'gray'} onClick={copy}>
                       {copied ? <Check size={16} /> : <Copy size={16} />}
                     </ActionIcon>
@@ -127,51 +120,50 @@ export function GoogleSetupGuideModal({ opened, onClose }: GoogleSetupGuideModal
         </List>
 
         <Title order={6} mt="xs">
-          Zugangsdaten hinterlegen
+          {t('calendar.credentials')}
         </Title>
         <TextInput
-          label="Öffentliche Adresse"
+          label={t('calendar.publicUrl')}
           description={
-            <>
-              Nur die Basis-Adresse ohne Pfad, z.B. <Code>{window.location.origin}</Code> — NICHT
-              die vollständige Redirect-URI von oben (der Pfad <Code>/calendar/google/callback</Code>{' '}
-              wird automatisch angehängt).
-            </>
+            <Trans
+              i18nKey="calendar.publicUrlDescription"
+              values={{ origin: window.location.origin }}
+              components={{ code: <Code /> }}
+            />
           }
           value={publicUrl}
           onChange={(e) => setPublicUrl(e.currentTarget.value)}
         />
         <TextInput
-          label="Client-ID"
+          label={t('calendar.clientId')}
           value={clientId}
           onChange={(e) => setClientId(e.currentTarget.value)}
         />
         <PasswordInput
-          label="Client-Secret"
-          placeholder={status?.configured ? '•••••••• (unverändert lassen zum Beibehalten)' : undefined}
+          label={t('calendar.clientSecret')}
+          placeholder={status?.configured ? t('calendar.keepSecretPlaceholder') : undefined}
           value={clientSecret}
           onChange={(e) => setClientSecret(e.currentTarget.value)}
         />
         {saveMutation.isError && (
-          <Alert color="red" title="Speichern fehlgeschlagen">
+          <Alert color="red" title={t('calendar.saveFailed')}>
             {(saveMutation.error as Error).message}
           </Alert>
         )}
         <Button onClick={() => saveMutation.mutate()} disabled={!canSave} loading={saveMutation.isPending} variant="light">
-          Zugangsdaten speichern
+          {t('calendar.saveCredentials')}
         </Button>
 
         <Title order={6} mt="xs">
-          Danach
+          {t('calendar.afterSetup')}
         </Title>
         <Text size="sm" c="dimmed">
-          Auf „Zu Google verbinden" klicken — das führt direkt zur Google-Anmeldeseite. Nach der
-          Bestätigung dort ist das Konto automatisch verbunden.
+          {t('calendar.afterSetupText')}
         </Text>
 
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
-            Abbrechen
+            {t('common.cancel')}
           </Button>
           <Button
             disabled={!status?.configured}
@@ -179,7 +171,7 @@ export function GoogleSetupGuideModal({ opened, onClose }: GoogleSetupGuideModal
               window.open(api.calendar.googleConnectUrl, '_blank', 'noopener,noreferrer');
             }}
           >
-            Zu Google verbinden
+            {t('calendar.connectToGoogle')}
           </Button>
         </Group>
       </Stack>

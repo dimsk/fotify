@@ -16,82 +16,49 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { CalendarClock, Clock, Images, LayoutGrid, Wand2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import type {
   CollageLayoutSelection,
   GrainEffect,
+  Language,
   PhotoCaptionPosition,
   PhotoFrameStyle,
   ShuffleMode,
   TransitionEffect,
 } from '../../api/types';
 
-const EFFECT_OPTIONS: { value: TransitionEffect; label: string }[] = [
-  { value: 'fade', label: 'Überblenden (Fade)' },
-  { value: 'zoom', label: 'Zoom / Ken Burns' },
-  { value: 'crossfadeBlur', label: 'Weichzeichner-Überblendung' },
-  { value: 'crossZoom', label: 'Sanfter Zoom-Übergang' },
-  { value: 'dipToBlack', label: 'Abblenden zu Schwarz' },
-  { value: 'dipToWhite', label: 'Aufblenden zu Weiß' },
-  { value: 'filmGrain', label: 'Film-Überblendung' },
-  { value: 'colorBreath', label: 'Farbatmung' },
-  { value: 'lightLeak', label: 'Lichteinfall' },
-  { value: 'vignettePulse', label: 'Vignetten-Puls' },
-  { value: 'rackFocus', label: 'Fokus-Wechsel' },
-  { value: 'exposureFlash', label: 'Belichtungsblitz' },
-  { value: 'radialBloom', label: 'Lichtschimmer' },
-  { value: 'duotone', label: 'Duoton-Wechsel' },
-  { value: 'staggerFade', label: 'Gestaffeltes Einblenden (3er-Bilder)' },
-  { value: 'dustParticles', label: 'Staubpartikel' },
-  { value: 'random', label: 'Zufällig' },
+const EFFECT_VALUES: TransitionEffect[] = [
+  'fade',
+  'zoom',
+  'crossfadeBlur',
+  'crossZoom',
+  'dipToBlack',
+  'dipToWhite',
+  'filmGrain',
+  'colorBreath',
+  'lightLeak',
+  'vignettePulse',
+  'rackFocus',
+  'exposureFlash',
+  'radialBloom',
+  'duotone',
+  'staggerFade',
+  'dustParticles',
+  'random',
 ];
-
-const SHUFFLE_MODE_OPTIONS: { value: ShuffleMode; label: string }[] = [
-  { value: 'all', label: 'Alle Ordner mischen' },
-  { value: 'source-rotation', label: 'Ordner nacheinander (je 1 Stunde)' },
-];
-
-const FRAME_STYLE_OPTIONS: { value: PhotoFrameStyle; label: string }[] = [
-  { value: 'none', label: 'Kein Rahmen' },
-  { value: 'thin', label: 'Dünner Rahmen' },
-  { value: 'polaroid', label: 'Polaroid' },
-];
-
-const CAPTION_POSITION_OPTIONS: {
-  value: PhotoCaptionPosition;
-  label: string;
-}[] = [
-  { value: 'bottom-right', label: 'Unten rechts' },
-  { value: 'bottom-left', label: 'Unten links' },
-];
-
-const GRAIN_EFFECT_OPTIONS: { value: GrainEffect; label: string }[] = [
-  { value: 'none', label: 'Kein Grain' },
-  { value: 'light', label: 'Leichtes Grain' },
-  { value: 'strong', label: 'Starkes Grain' },
-];
-
-const COLLAGE_LAYOUT_OPTIONS: {
-  value: CollageLayoutSelection;
-  label: string;
-}[] = [
-  { value: 'heartCutout', label: 'Herz-Ausschnitt (4 Fotos + Herz-Foto)' },
-  { value: 'heartMosaic', label: 'Herz-Mosaik (10 Fotos)' },
-  { value: 'diamondGridDense', label: 'Rautenraster (dicht, 12 Fotos)' },
-  { value: 'diamondGridLarge', label: 'Rautenraster (groß, 8 Fotos)' },
-  { value: 'diamondClusterTight', label: 'Rauten-Mosaik (kompakt, 9 Fotos)' },
-  {
-    value: 'diamondClusterScatter',
-    label: 'Rauten-Mosaik (verstreut, 11 Fotos)',
-  },
-  {
-    value: 'heroWithSupporting',
-    label: 'Hauptbild mit Nebenbildern (8 Fotos)',
-  },
-  { value: 'threeTopTwoBottom', label: '3 oben, 2 unten (5 Fotos)' },
-  { value: 'scrapbookScatter', label: 'Scrapbook, verstreut (10 Fotos)' },
-  { value: 'editorialMasonry', label: 'Redaktionelles Mosaik (12 Fotos)' },
-  { value: 'random', label: 'Zufällig' },
+const COLLAGE_LAYOUT_VALUES: CollageLayoutSelection[] = [
+  'heartCutout',
+  'heartMosaic',
+  'diamondGridDense',
+  'diamondGridLarge',
+  'diamondClusterTight',
+  'diamondClusterScatter',
+  'heroWithSupporting',
+  'threeTopTwoBottom',
+  'scrapbookScatter',
+  'editorialMasonry',
+  'random',
 ];
 
 interface SectionProps {
@@ -113,12 +80,14 @@ function Section({ icon, title, children }: SectionProps) {
 }
 
 export function SettingsPage() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: api.settings.get,
   });
 
+  const [language, setLanguage] = useState<Language>('en');
   const [effects, setEffects] = useState<TransitionEffect[]>(['fade']);
   const [imageSeconds, setImageSeconds] = useState(6);
   const [transitionMs, setTransitionMs] = useState(1200);
@@ -144,6 +113,7 @@ export function SettingsPage() {
 
   useEffect(() => {
     if (!settings) return;
+    setLanguage(settings.language);
     setEffects(settings.transitionEffects);
     setImageSeconds(Math.round(settings.imageDurationMs / 1000));
     setTransitionMs(settings.transitionDurationMs);
@@ -165,10 +135,10 @@ export function SettingsPage() {
   }, [settings]);
 
   /**
-   * "Zufällig" means "pick from everything" and doesn't make sense combined
+   * "Random" means "pick from everything" and doesn't make sense combined
    * with specific choices, so the two are kept mutually exclusive: picking
-   * Zufällig clears everything else, and picking any specific effect while
-   * Zufällig is active drops Zufällig instead of combining with it.
+   * Random clears everything else, and picking any specific effect while
+   * Random is active drops Random instead of combining with it.
    */
   function handleEffectsChange(values: string[]) {
     const selected = values as TransitionEffect[];
@@ -188,7 +158,7 @@ export function SettingsPage() {
   }
 
   /**
-   * "Zufällig" means "any of the 10 layouts may appear" and doesn't make
+   * "Random" means "any of the 10 layouts may appear" and doesn't make
    * sense combined with specific choices — mirrors handleEffectsChange's
    * mutual-exclusivity handling for transitionEffects exactly.
    */
@@ -214,7 +184,7 @@ export function SettingsPage() {
     onSuccess: (updated) => {
       queryClient.setQueryData(['settings'], updated);
       notifications.show({
-        message: 'Einstellungen gespeichert',
+        message: t('common.settingsSaved'),
         color: 'teal',
       });
     },
@@ -222,6 +192,7 @@ export function SettingsPage() {
 
   function save() {
     updateMutation.mutate({
+      language,
       transitionEffects: effects,
       imageDurationMs: imageSeconds * 1000,
       transitionDurationMs: transitionMs,
@@ -243,16 +214,55 @@ export function SettingsPage() {
     });
   }
 
+  const languageOptions: { value: Language; label: string }[] = [
+    { value: 'en', label: t('common.english') },
+    { value: 'de', label: t('common.german') },
+  ];
+  const effectOptions = EFFECT_VALUES.map((value) => ({ value, label: t(`options.effects.${value}`) }));
+  const shuffleModeOptions: { value: ShuffleMode; label: string }[] = [
+    { value: 'all', label: t('options.shuffle.all') },
+    { value: 'source-rotation', label: t('options.shuffle.sourceRotation') },
+  ];
+  const frameStyleOptions: { value: PhotoFrameStyle; label: string }[] = [
+    { value: 'none', label: t('options.frames.none') },
+    { value: 'thin', label: t('options.frames.thin') },
+    { value: 'polaroid', label: t('options.frames.polaroid') },
+  ];
+  const captionPositionOptions: { value: PhotoCaptionPosition; label: string }[] = [
+    { value: 'bottom-right', label: t('options.captions.bottomRight') },
+    { value: 'bottom-left', label: t('options.captions.bottomLeft') },
+  ];
+  const grainEffectOptions: { value: GrainEffect; label: string }[] = [
+    { value: 'none', label: t('options.grain.none') },
+    { value: 'light', label: t('options.grain.light') },
+    { value: 'strong', label: t('options.grain.strong') },
+  ];
+  const collageLayoutOptions = COLLAGE_LAYOUT_VALUES.map((value) => ({
+    value,
+    label: t(`options.collages.${value}`),
+  }));
+
   return (
     <Stack>
-      <Title order={3}>Diashow-Einstellungen</Title>
+      <Title order={3}>{t('settings.title')}</Title>
 
       <SimpleGrid cols={{ base: 1, md: 2, lg: 3 }} spacing="lg">
-        <Section icon={<Wand2 size={18} />} title="Übergänge">
+        <Section icon={<Wand2 size={18} />} title={t('settings.general')}>
+          <Select
+            label={t('common.language')}
+            description={t('settings.languageDescription')}
+            data={languageOptions}
+            value={language}
+            onChange={(v) => v && setLanguage(v as Language)}
+            allowDeselect={false}
+          />
+        </Section>
+
+        <Section icon={<Wand2 size={18} />} title={t('settings.transitions')}>
           <MultiSelect
-            label="Übergangseffekte"
-            description="Mehrere auswählen, um zufällig zwischen ihnen zu wechseln. 'Zufällig' wählt aus allen Effekten und schließt eine gezielte Auswahl aus."
-            data={EFFECT_OPTIONS}
+            label={t('settings.transitionEffects')}
+            description={t('settings.transitionEffectsDescription')}
+            data={effectOptions}
             value={effects}
             onChange={handleEffectsChange}
             searchable
@@ -260,7 +270,7 @@ export function SettingsPage() {
           />
 
           <NumberInput
-            label="Übergangsdauer (Millisekunden)"
+            label={t('settings.transitionDuration')}
             min={200}
             max={5000}
             step={100}
@@ -269,8 +279,8 @@ export function SettingsPage() {
           />
 
           <NumberInput
-            label="Cinematic-Look-Wahrscheinlichkeit (%)"
-            description="Wendet zufällig auf einen Teil der Bilder einen filmischen Farblook an (Teal & Orange). Der Übergang ist in diesem Fall immer ein Überblenden."
+            label={t('settings.cinematicChance')}
+            description={t('settings.cinematicChanceDescription')}
             min={0}
             max={100}
             value={cinematicChance}
@@ -278,9 +288,9 @@ export function SettingsPage() {
           />
         </Section>
 
-        <Section icon={<Clock size={18} />} title="Wiedergabe">
+        <Section icon={<Clock size={18} />} title={t('settings.playback')}>
           <NumberInput
-            label="Anzeigedauer pro Bild (Sekunden)"
+            label={t('settings.imageDuration')}
             min={1}
             max={120}
             value={imageSeconds}
@@ -288,25 +298,25 @@ export function SettingsPage() {
           />
 
           <Select
-            label="Wiedergabe-Reihenfolge"
-            data={SHUFFLE_MODE_OPTIONS}
+            label={t('settings.playbackOrder')}
+            data={shuffleModeOptions}
             value={shuffleMode}
             onChange={(v) => v && setShuffleMode(v as ShuffleMode)}
             allowDeselect={false}
           />
 
           <Switch
-            label="Bereits gezeigte Bilder erst nach vollem Durchlauf wiederholen"
-            description="Wenn aktiv, werden noch nie gezeigte Bilder bevorzugt; bereits gezeigte kommen erst wieder dran, wenn alle einmal gezeigt wurden."
+            label={t('settings.avoidRepeats')}
+            description={t('settings.avoidRepeatsDescription')}
             checked={avoidRepeats}
             onChange={(e) => setAvoidRepeats(e.currentTarget.checked)}
           />
         </Section>
 
-        <Section icon={<Images size={18} />} title="Bildauswahl">
+        <Section icon={<Images size={18} />} title={t('settings.imageSelection')}>
           <Switch
-            label="Zusammengehörige Hochformat-Bilder gruppieren"
-            description="Wenn aktiv, werden bei einer 3er-Hochformat-Anzeige Bilder bevorzugt, die im Quellordner nebeneinander liegen (z. B. eine Fotoserie). Wenn aus, werden alle drei rein zufällig gewählt."
+            label={t('settings.groupPortraits')}
+            description={t('settings.groupPortraitsDescription')}
             checked={adjacentPortraitTriples}
             onChange={(e) =>
               setAdjacentPortraitTriples(e.currentTarget.checked)
@@ -314,18 +324,18 @@ export function SettingsPage() {
           />
 
           <Select
-            label="Bilderrahmen"
-            description="Dezenter optischer Rahmen um jedes angezeigte Foto."
-            data={FRAME_STYLE_OPTIONS}
+            label={t('settings.photoFrame')}
+            description={t('settings.photoFrameDescription')}
+            data={frameStyleOptions}
             value={photoFrameStyle}
             onChange={(v) => v && setPhotoFrameStyle(v as PhotoFrameStyle)}
             allowDeselect={false}
           />
 
           <Select
-            label="Zeitstempel und Ort"
-            description="Position der Foto-Beschriftung in der Diashow."
-            data={CAPTION_POSITION_OPTIONS}
+            label={t('settings.caption')}
+            description={t('settings.captionDescription')}
+            data={captionPositionOptions}
             value={photoCaptionPosition}
             onChange={(v) =>
               v && setPhotoCaptionPosition(v as PhotoCaptionPosition)
@@ -334,19 +344,19 @@ export function SettingsPage() {
           />
 
           <Select
-            label="Grain Overlay"
-            description="Feine Filmkorn-Struktur als globales Overlay über der gesamten Diashow."
-            data={GRAIN_EFFECT_OPTIONS}
+            label={t('settings.grain')}
+            description={t('settings.grainDescription')}
+            data={grainEffectOptions}
             value={grainEffect}
             onChange={(v) => v && setGrainEffect(v as GrainEffect)}
             allowDeselect={false}
           />
         </Section>
 
-        <Section icon={<CalendarClock size={18} />} title="Zeitplan">
+        <Section icon={<CalendarClock size={18} />} title={t('settings.schedule')}>
           <Switch
-            label="Nachtruhe"
-            description="Zeigt außerhalb der angegebenen Zeitspanne einen leeren Bildschirm statt Fotos. Die Warteschlange bleibt dabei erhalten und läuft beim Aufwachen genau dort weiter."
+            label={t('settings.nightMode')}
+            description={t('settings.nightModeDescription')}
             checked={nightModeEnabled}
             onChange={(e) => setNightModeEnabled(e.currentTarget.checked)}
           />
@@ -354,14 +364,14 @@ export function SettingsPage() {
           <Group grow>
             <TextInput
               type="time"
-              label="Beginn"
+              label={t('common.start')}
               value={nightModeStart}
               onChange={(e) => setNightModeStart(e.currentTarget.value)}
               disabled={!nightModeEnabled}
             />
             <TextInput
               type="time"
-              label="Ende"
+              label={t('common.end')}
               value={nightModeEnd}
               onChange={(e) => setNightModeEnd(e.currentTarget.value)}
               disabled={!nightModeEnabled}
@@ -369,23 +379,23 @@ export function SettingsPage() {
           </Group>
 
           <Switch
-            label="Automatischer täglicher Rescan"
-            description="Scannt alle nicht pausierten Quellen einmal täglich automatisch neu, zusätzlich zum manuellen Neu-scannen."
+            label={t('settings.autoRescan')}
+            description={t('settings.autoRescanDescription')}
             checked={autoRescanEnabled}
             onChange={(e) => setAutoRescanEnabled(e.currentTarget.checked)}
           />
         </Section>
 
-        <Section icon={<LayoutGrid size={18} />} title="Collagen">
+        <Section icon={<LayoutGrid size={18} />} title={t('settings.collages')}>
           <Switch
-            label="Collagen aktivieren"
-            description="Setzt gelegentlich mehrere zeitlich nah beieinander aufgenommene Fotos (z. B. ein Nachmittag im Urlaub) zu einer gemeinsamen Ansicht zusammen."
+            label={t('settings.enableCollages')}
+            description={t('settings.enableCollagesDescription')}
             checked={collageEnabled}
             onChange={(e) => setCollageEnabled(e.currentTarget.checked)}
           />
 
           <NumberInput
-            label="Wahrscheinlichkeit (%)"
+            label={t('settings.probability')}
             min={0}
             max={100}
             value={collageChance}
@@ -394,8 +404,8 @@ export function SettingsPage() {
           />
 
           <NumberInput
-            label="Zeitfenster (Minuten)"
-            description="Wie nah beieinander die Aufnahmezeitpunkte liegen müssen, um zusammen in einer Collage zu landen."
+            label={t('settings.timeWindow')}
+            description={t('settings.timeWindowDescription')}
             min={1}
             value={collageTimeWindowMinutes}
             onChange={(v) => setCollageTimeWindowMinutes(Number(v) || 1)}
@@ -403,9 +413,9 @@ export function SettingsPage() {
           />
 
           <MultiSelect
-            label="Layout-Typen"
-            description="Welche der 10 Collagen-Layouts vorkommen dürfen. 'Zufällig' wählt aus allen Layouts und schließt eine gezielte Auswahl aus."
-            data={COLLAGE_LAYOUT_OPTIONS}
+            label={t('settings.layoutTypes')}
+            description={t('settings.layoutTypesDescription')}
+            data={collageLayoutOptions}
             value={collageLayouts}
             onChange={handleCollageLayoutsChange}
             searchable
@@ -416,7 +426,7 @@ export function SettingsPage() {
       </SimpleGrid>
 
       <Text size="xs" c="dimmed">
-        Änderungen wirken sich ab dem nächsten Bildwechsel in der Diashow aus.
+        {t('common.changesApplyNextSlide')}
       </Text>
 
       <Button
@@ -424,7 +434,7 @@ export function SettingsPage() {
         loading={updateMutation.isPending}
         w={{ base: '100%', sm: 200 }}
       >
-        Speichern
+        {t('common.save')}
       </Button>
     </Stack>
   );

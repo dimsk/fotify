@@ -3,12 +3,14 @@ import { Button, Group, Modal, Table, Text, Title } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { notifications } from '@mantine/notifications';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import type { Source } from '../../api/types';
 import { AddSourceModal } from './AddSourceModal';
 import { SourceRow } from './SourceRow';
 
 export function SourcesPage() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Source | null>(null);
@@ -33,7 +35,7 @@ export function SourcesPage() {
     mutationFn: (id: number) => api.sources.backfillLocations(id),
     onSuccess: () => {
       notifications.show({
-        message: 'Standort-Ermittlung gestartet — läuft im Hintergrund.',
+        message: t('sources.locationBackfillStarted'),
         color: 'teal',
       });
       queryClient.invalidateQueries({ queryKey: ['sources'] });
@@ -61,28 +63,28 @@ export function SourcesPage() {
   return (
     <>
       <Group justify="space-between" mb="md">
-        <Title order={3}>Quellen</Title>
+        <Title order={3}>{t('sources.title')}</Title>
         <Button
           leftSection={<Plus size={16} />}
           onClick={() => setModalOpen(true)}
         >
-          Quelle hinzufügen
+          {t('sources.add')}
         </Button>
       </Group>
 
       {sources.length === 0 ? (
-        <Text c="dimmed">Noch keine Quellen hinzugefügt.</Text>
+        <Text c="dimmed">{t('sources.empty')}</Text>
       ) : (
         <Table verticalSpacing="sm">
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Name</Table.Th>
-              <Table.Th>Typ</Table.Th>
-              <Table.Th>Pfad</Table.Th>
-              <Table.Th>Fotos</Table.Th>
-              <Table.Th>Gezeigt</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Aktionen</Table.Th>
+              <Table.Th>{t('common.name')}</Table.Th>
+              <Table.Th>{t('common.type')}</Table.Th>
+              <Table.Th>{t('sources.path')}</Table.Th>
+              <Table.Th>{t('sources.photos')}</Table.Th>
+              <Table.Th>{t('sources.shown')}</Table.Th>
+              <Table.Th>{t('common.status')}</Table.Th>
+              <Table.Th>{t('common.actions')}</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -108,15 +110,14 @@ export function SourcesPage() {
       <Modal
         opened={!!pendingDelete}
         onClose={() => setPendingDelete(null)}
-        title="Quelle löschen"
+        title={t('sources.deleteTitle')}
       >
         <Text mb="md">
-          Soll die Quelle "{pendingDelete?.name}" wirklich gelöscht werden? Alle
-          zugehörigen Fotos werden aus der Diashow entfernt.
+          {t('sources.deleteConfirm', { name: pendingDelete?.name })}
         </Text>
         <Group justify="flex-end">
           <Button variant="default" onClick={() => setPendingDelete(null)}>
-            Abbrechen
+            {t('common.cancel')}
           </Button>
           <Button
             color="red"
@@ -125,7 +126,7 @@ export function SourcesPage() {
               pendingDelete && deleteMutation.mutate(pendingDelete.id)
             }
           >
-            Löschen
+            {t('common.delete')}
           </Button>
         </Group>
       </Modal>

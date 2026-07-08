@@ -1,4 +1,8 @@
+import { useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import i18n from './i18n';
+import { api } from './api/client';
 import { SlideshowPage } from './pages/SlideshowPage';
 import { PhotoActionPage } from './pages/PhotoActionPage';
 import { AdminLayout } from './pages/admin/AdminLayout';
@@ -11,18 +15,33 @@ import { WeatherPage } from './pages/admin/WeatherPage';
 
 export function App() {
   return (
-    <Routes>
-      <Route path="/" element={<SlideshowPage />} />
-      <Route path="/photo/:id" element={<PhotoActionPage />} />
-      <Route path="/admin" element={<AdminLayout />}>
-        <Route index element={<Navigate to="sources" replace />} />
-        <Route path="sources" element={<SourcesPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route path="date" element={<DatePage />} />
-        <Route path="weather" element={<WeatherPage />} />
-        <Route path="calendar" element={<CalendarPage />} />
-        <Route path="statistics" element={<StatisticsPage />} />
-      </Route>
-    </Routes>
+    <>
+      <LanguageSync />
+      <Routes>
+        <Route path="/" element={<SlideshowPage />} />
+        <Route path="/photo/:id" element={<PhotoActionPage />} />
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Navigate to="sources" replace />} />
+          <Route path="sources" element={<SourcesPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="date" element={<DatePage />} />
+          <Route path="weather" element={<WeatherPage />} />
+          <Route path="calendar" element={<CalendarPage />} />
+          <Route path="statistics" element={<StatisticsPage />} />
+        </Route>
+      </Routes>
+    </>
   );
+}
+
+function LanguageSync() {
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.settings.get });
+
+  useEffect(() => {
+    if (settings?.language && i18n.language !== settings.language) {
+      i18n.changeLanguage(settings.language);
+    }
+  }, [settings?.language]);
+
+  return null;
 }

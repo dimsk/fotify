@@ -8,6 +8,7 @@ import {
   Title,
 } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import {
   Images,
   Eye,
@@ -33,6 +34,7 @@ function formatBytes(bytes: number): string {
 }
 
 export function StatisticsPage() {
+  const { t } = useTranslation();
   const { data } = useQuery({
     queryKey: ['statistics'],
     queryFn: api.photos.statistics,
@@ -46,66 +48,65 @@ export function StatisticsPage() {
       : 0;
   const capturedRange =
     data.oldestCapturedAt || data.newestCapturedAt
-      ? `${formatCapturedAt(data.oldestCapturedAt) ?? 'unbekannt'} – ${
-          formatCapturedAt(data.newestCapturedAt) ?? 'unbekannt'
+      ? `${formatCapturedAt(data.oldestCapturedAt) ?? t('common.unknown')} - ${
+          formatCapturedAt(data.newestCapturedAt) ?? t('common.unknown')
         }`
-      : 'unbekannt';
+      : t('common.unknown');
   const kpis = [
     {
       icon: <Images size={16} />,
-      label: 'Fotos gesamt',
+      label: t('statistics.totalPhotos'),
       value: String(data.totalPhotos),
     },
     {
       icon: <FolderOpen size={16} />,
-      label: 'Quellen',
+      label: t('statistics.sources'),
       value: String(data.totalSources),
     },
     {
       icon: <Eye size={16} />,
-      label: 'Bereits gezeigt',
+      label: t('statistics.shown'),
       value: `${data.shownCount} (${shownPercent}%)`,
     },
     {
       icon: <EyeOff size={16} />,
-      label: 'Noch nie gezeigt',
+      label: t('statistics.neverShown'),
       value: String(data.neverShownCount),
     },
     {
       icon: <Images size={16} />,
-      label: 'Querformat',
+      label: t('statistics.landscape'),
       value: String(data.byOrientation.landscape),
     },
     {
       icon: <Images size={16} />,
-      label: 'Hochformat',
+      label: t('statistics.portrait'),
       value: String(data.byOrientation.portrait),
     },
     {
       icon: <Images size={16} />,
-      label: 'Quadratisch',
+      label: t('statistics.square'),
       value: String(data.byOrientation.square),
-    },{},
+    },
     {
       icon: <MapPin size={16} />,
-      label: 'Mit GPS-Koordinaten',
+      label: t('statistics.withGps'),
       value: String(data.photosWithGpsCoordinates),
     },
     {
       icon: <MapPin size={16} />,
-      label: 'Ohne GPS-Koordinaten',
+      label: t('statistics.withoutGps'),
       value: String(data.photosWithoutGpsCoordinates),
     },
     {
       icon: <Calendar size={16} />,
-      label: 'Aufnahmezeitraum',
+      label: t('statistics.capturedRange'),
       value: capturedRange,
     },
-    {},
     {
       icon: <HardDrive size={16} />,
-      label: 'Cache-Größe',
-      value: `${formatBytes(data.cache.totalBytes)} (${data.cache.fileCount} Dateien)`,
+      label: t('statistics.cacheSize'),
+      value: `${formatBytes(data.cache.totalBytes)} (${t('statistics.files', { count: data.cache.fileCount })})`,
     },
   ];
   const kpiRows = Array.from({ length: Math.ceil(kpis.length / 2) }, (_, i) =>
@@ -114,7 +115,7 @@ export function StatisticsPage() {
 
   return (
     <Stack gap="lg">
-      <Title order={3}>Statistik</Title>
+      <Title order={3}>{t('statistics.title')}</Title>
 
       <Card withBorder padding="md" radius="md">
         <Table verticalSpacing="xs">
@@ -141,14 +142,14 @@ export function StatisticsPage() {
         </Table>
       </Card>
 
-      <Title order={4}>Nach Quelle</Title>
+      <Title order={4}>{t('statistics.bySource')}</Title>
       <Table verticalSpacing="sm">
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Name</Table.Th>
-            <Table.Th>Typ</Table.Th>
-            <Table.Th>Fotos</Table.Th>
-            <Table.Th>Gezeigt</Table.Th>
+            <Table.Th>{t('common.name')}</Table.Th>
+            <Table.Th>{t('common.type')}</Table.Th>
+            <Table.Th>{t('sources.photos')}</Table.Th>
+            <Table.Th>{t('sources.shown')}</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -160,7 +161,7 @@ export function StatisticsPage() {
             return (
               <Table.Tr key={source.id}>
                 <Table.Td>{source.name}</Table.Td>
-                <Table.Td>{source.type === 'local' ? 'Lokal' : 'SMB'}</Table.Td>
+                <Table.Td>{source.type === 'local' ? t('common.local') : 'SMB'}</Table.Td>
                 <Table.Td>{source.photoCount}</Table.Td>
                 <Table.Td>
                   <Text size="sm" mb={2}>

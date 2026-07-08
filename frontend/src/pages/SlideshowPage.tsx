@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ImageOff } from 'lucide-react';
+import { Trans } from 'react-i18next';
 import { api } from '../api/client';
 import { useSlideshowEngine } from '../slideshow/useSlideshowEngine';
 import { useAutoFullscreen } from '../hooks/useAutoFullscreen';
@@ -155,8 +156,7 @@ export function SlideshowPage() {
       <div className={styles.emptyState}>
         <ImageOff size={48} strokeWidth={1.5} />
         <p>
-          Keine Fotos konfiguriert. Bitte im{' '}
-          <Link to="/admin">Admin-Bereich</Link> Verzeichnisse hinzufügen.
+          <Trans i18nKey="slideshow.noPhotos" components={{ admin: <Link to="/admin" /> }} />
         </p>
       </div>
     );

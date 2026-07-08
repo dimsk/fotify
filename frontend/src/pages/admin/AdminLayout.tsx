@@ -10,11 +10,13 @@ import {
   Tv,
 } from 'lucide-react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 
 const SOURCE_HEALTH_POLL_MS = 30_000;
 
 export function AdminLayout() {
+  const { t } = useTranslation();
   const location = useLocation();
 
   // A lightweight background poll so a failed source (e.g. an SMB share
@@ -32,7 +34,7 @@ export function AdminLayout() {
       <AppShell.Navbar p="md">
         <Group mb="lg" gap="xs">
           <Tv size={22} />
-          <Title order={4}>Fotify Admin</Title>
+          <Title order={4}>{t('nav.adminTitle')}</Title>
         </Group>
         <Indicator
           disabled={!hasSourceError}
@@ -45,7 +47,7 @@ export function AdminLayout() {
           <NavLink
             component={Link}
             to="/admin/sources"
-            label="Quellen"
+            label={t('nav.sources')}
             leftSection={<FolderOpen size={18} />}
             active={location.pathname.startsWith('/admin/sources')}
           />
@@ -53,42 +55,42 @@ export function AdminLayout() {
         <NavLink
           component={Link}
           to="/admin/settings"
-          label="Diashow-Einstellungen"
+          label={t('nav.slideshowSettings')}
           leftSection={<SettingsIcon size={18} />}
           active={location.pathname.startsWith('/admin/settings')}
         />
         <NavLink
           component={Link}
           to="/admin/date"
-          label="Datum"
+          label={t('nav.date')}
           leftSection={<Clock3 size={18} />}
           active={location.pathname.startsWith('/admin/date')}
         />
         <NavLink
           component={Link}
           to="/admin/weather"
-          label="Wetter"
+          label={t('nav.weather')}
           leftSection={<CloudSun size={18} />}
           active={location.pathname.startsWith('/admin/weather')}
         />
         <NavLink
           component={Link}
           to="/admin/calendar"
-          label="Kalender"
+          label={t('nav.calendar')}
           leftSection={<CalendarIcon size={18} />}
           active={location.pathname.startsWith('/admin/calendar')}
         />
         <NavLink
           component={Link}
           to="/admin/statistics"
-          label="Statistik"
+          label={t('nav.statistics')}
           leftSection={<BarChart3 size={18} />}
           active={location.pathname.startsWith('/admin/statistics')}
         />
         <NavLink
           component={Link}
           to="/"
-          label="Zur Diashow"
+          label={t('nav.slideshow')}
           leftSection={<Tv size={18} />}
           mt="auto"
         />

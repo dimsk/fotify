@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActionIcon, Alert, Button, Group, Loader, ScrollArea, Stack, Text } from '@mantine/core';
 import { ArrowUp, Folder, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { DirectoryListing } from '../api/types';
 
 interface DirectoryBrowserProps {
@@ -10,6 +11,7 @@ interface DirectoryBrowserProps {
 }
 
 export function DirectoryBrowser({ listDirectory, onSelect, disabled }: DirectoryBrowserProps) {
+  const { t } = useTranslation();
   const [listing, setListing] = useState<DirectoryListing | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +51,7 @@ export function DirectoryBrowser({ listDirectory, onSelect, disabled }: Director
       </Group>
 
       {error && (
-        <Alert color="red" title="Fehler">
+        <Alert color="red" title={t('directory.error')}>
           {error}
         </Alert>
       )}
@@ -75,7 +77,7 @@ export function DirectoryBrowser({ listDirectory, onSelect, disabled }: Director
             ))}
             {listing && listing.directories.length === 0 && (
               <Text size="sm" c="dimmed" ta="center" py="md">
-                Keine Unterordner
+                {t('directory.noSubfolders')}
               </Text>
             )}
           </Stack>
@@ -83,7 +85,7 @@ export function DirectoryBrowser({ listDirectory, onSelect, disabled }: Director
       </ScrollArea>
 
       <Button onClick={() => listing && onSelect(listing.currentPath)} disabled={!listing}>
-        Diesen Ordner verwenden
+        {t('directory.useFolder')}
       </Button>
     </Stack>
   );

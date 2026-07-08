@@ -13,22 +13,19 @@ import { useDebouncedValue } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CloudSun } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import type {
   WeatherLocationSuggestion,
   WeatherOverlayMode,
 } from '../../api/types';
 
-const WEATHER_MODE_OPTIONS: { value: WeatherOverlayMode; label: string }[] = [
-  { value: 'always', label: 'Immer anzeigen' },
-  { value: 'sometimes', label: 'Bei manchen Bildern einblenden' },
-];
-
 function optionFor(location: WeatherLocationSuggestion) {
   return { value: String(location.id), label: location.label };
 }
 
 export function WeatherPage() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data: settings } = useQuery({
     queryKey: ['weather-settings'],
@@ -82,7 +79,7 @@ export function WeatherPage() {
       queryClient.setQueryData(['weather-settings'], updated);
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       notifications.show({
-        message: 'Wetter-Einstellungen gespeichert',
+        message: t('weather.saved'),
         color: 'teal',
       });
     },
@@ -91,24 +88,28 @@ export function WeatherPage() {
   const selectedLocationIsValid =
     selectedLocation !== null && search === selectedLocation.label;
   const saveDisabled = enabled && !selectedLocationIsValid;
+  const weatherModeOptions: { value: WeatherOverlayMode; label: string }[] = [
+    { value: 'always', label: t('options.overlayModes.always') },
+    { value: 'sometimes', label: t('options.overlayModes.sometimes') },
+  ];
 
   return (
     <Stack>
-      <Title order={3}>Wetter</Title>
+      <Title order={3}>{t('weather.title')}</Title>
 
       <Card withBorder padding="lg" radius="md">
         <Stack gap="md">
           <Switch
-            label="Wetter anzeigen"
-            description="Zeigt aktuelles Wetter und Vorhersage in der Diashow."
+            label={t('weather.show')}
+            description={t('weather.showDescription')}
             checked={enabled}
             onChange={(event) => setEnabled(event.currentTarget.checked)}
           />
 
           <Select
-            label="Ort"
-            description="Bitte einen vorgeschlagenen Ort auswählen. Freie Eingaben werden nicht gespeichert."
-            placeholder="Ort suchen..."
+            label={t('weather.location')}
+            description={t('weather.locationDescription')}
+            placeholder={t('weather.searchPlaceholder')}
             leftSection={<CloudSun size={16} />}
             data={locationOptions}
             value={selectedLocationValue}
@@ -135,13 +136,13 @@ export function WeatherPage() {
             }}
             searchable
             clearable
-            nothingFoundMessage={isFetching ? 'Suche...' : 'Kein Ort gefunden'}
+            nothingFoundMessage={isFetching ? t('weather.searching') : t('weather.notFound')}
           />
 
           <Select
-            label="Anzeigeverhalten"
-            description="Bei manchen Bildern wird das Wetter gemeinsam mit dem Datum eingeblendet."
-            data={WEATHER_MODE_OPTIONS}
+            label={t('weather.behavior')}
+            description={t('weather.behaviorDescription')}
+            data={weatherModeOptions}
             value={mode}
             onChange={(value) => value && setMode(value as WeatherOverlayMode)}
             disabled={!enabled}
@@ -149,7 +150,7 @@ export function WeatherPage() {
           />
 
           <NumberInput
-            label="Vorhersage-Tage"
+            label={t('weather.forecastDays')}
             min={3}
             max={7}
             value={forecastDays}
@@ -158,8 +159,7 @@ export function WeatherPage() {
           />
 
           <Text size="xs" c="dimmed">
-            Wetterdaten kommen von Open-Meteo. Der Ort wird über
-            Open-Meteo-Geocoding validiert.
+            {t('weather.attribution')}
           </Text>
         </Stack>
       </Card>
@@ -177,7 +177,7 @@ export function WeatherPage() {
         loading={updateMutation.isPending}
         w={{ base: '100%', sm: 200 }}
       >
-        Speichern
+        {t('common.save')}
       </Button>
     </Stack>
   );

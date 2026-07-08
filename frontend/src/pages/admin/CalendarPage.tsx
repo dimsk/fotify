@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { CalendarClock, Plus } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import type { CalendarAccount } from '../../api/types';
 import { AddAppleCalendarModal } from './AddAppleCalendarModal';
@@ -12,6 +13,7 @@ import { CalendarSelectionSection } from './CalendarSelectionSection';
 import { GoogleSetupGuideModal } from './GoogleSetupGuideModal';
 
 export function CalendarPage() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [appleModalOpen, setAppleModalOpen] = useState(false);
   const [googleGuideOpen, setGoogleGuideOpen] = useState(false);
@@ -32,11 +34,11 @@ export function CalendarPage() {
     handledConnectResult.current = true;
     if (connected === 'google') {
       queryClient.invalidateQueries({ queryKey: ['calendar', 'accounts'] });
-      notifications.show({ message: 'Google-Konto verbunden', color: 'teal' });
+      notifications.show({ message: t('calendar.connectedGoogle'), color: 'teal' });
     } else if (connected === 'error') {
       notifications.show({
-        title: 'Verbindung fehlgeschlagen',
-        message: searchParams.get('message') ?? 'Unbekannter Fehler',
+        title: t('calendar.connectionFailed'),
+        message: searchParams.get('message') ?? t('calendar.unknownError'),
         color: 'red',
       });
     }
@@ -71,32 +73,32 @@ export function CalendarPage() {
 
   return (
     <Stack>
-      <Title order={3}>Kalender</Title>
+      <Title order={3}>{t('calendar.title')}</Title>
 
       <Card withBorder padding="lg" radius="md">
         <Group justify="space-between" mb="md">
-          <Title order={4}>Konten</Title>
+          <Title order={4}>{t('calendar.accounts')}</Title>
           <Group gap="xs">
             <Button variant="light" leftSection={<Plus size={16} />} onClick={() => setGoogleGuideOpen(true)}>
-              Mit Google verbinden
+              {t('calendar.connectGoogle')}
             </Button>
             <Button leftSection={<Plus size={16} />} onClick={() => setAppleModalOpen(true)}>
-              Apple-Kalender hinzufügen
+              {t('calendar.addApple')}
             </Button>
           </Group>
         </Group>
 
         {accounts.length === 0 ? (
-          <Text c="dimmed">Noch keine Konten verbunden.</Text>
+          <Text c="dimmed">{t('calendar.noAccounts')}</Text>
         ) : (
           <Table verticalSpacing="sm">
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>Konto</Table.Th>
-                <Table.Th>Typ</Table.Th>
-                <Table.Th>Status</Table.Th>
-                <Table.Th>Zuletzt synchronisiert</Table.Th>
-                <Table.Th>Aktionen</Table.Th>
+                <Table.Th>{t('calendar.account')}</Table.Th>
+                <Table.Th>{t('common.type')}</Table.Th>
+                <Table.Th>{t('common.status')}</Table.Th>
+                <Table.Th>{t('calendar.lastSynced')}</Table.Th>
+                <Table.Th>{t('common.actions')}</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -115,7 +117,7 @@ export function CalendarPage() {
 
       <Card withBorder padding="lg" radius="md">
         <Title order={4} mb="md">
-          Kalenderauswahl
+          {t('calendar.selection')}
         </Title>
         <CalendarSelectionSection accounts={accounts} />
       </Card>
@@ -126,21 +128,20 @@ export function CalendarPage() {
 
       <GoogleSetupGuideModal opened={googleGuideOpen} onClose={() => setGoogleGuideOpen(false)} />
 
-      <Modal opened={!!pendingDelete} onClose={() => setPendingDelete(null)} title="Konto trennen">
+      <Modal opened={!!pendingDelete} onClose={() => setPendingDelete(null)} title={t('calendar.deleteTitle')}>
         <Text mb="md">
-          Soll das Konto "{pendingDelete?.label}" wirklich getrennt werden? Alle zugehörigen Kalender
-          und zwischengespeicherten Termine werden entfernt.
+          {t('calendar.deleteConfirm', { label: pendingDelete?.label })}
         </Text>
         <Group justify="flex-end">
           <Button variant="default" onClick={() => setPendingDelete(null)}>
-            Abbrechen
+            {t('common.cancel')}
           </Button>
           <Button
             color="red"
             loading={deleteMutation.isPending}
             onClick={() => pendingDelete && deleteMutation.mutate(pendingDelete.id)}
           >
-            Trennen
+            {t('common.disconnect')}
           </Button>
         </Group>
       </Modal>
@@ -149,6 +150,7 @@ export function CalendarPage() {
 }
 
 function DisplayScheduleSection() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.settings.get });
 
@@ -167,7 +169,7 @@ function DisplayScheduleSection() {
     mutationFn: api.settings.update,
     onSuccess: (updated) => {
       queryClient.setQueryData(['settings'], updated);
-      notifications.show({ message: 'Einstellungen gespeichert', color: 'teal' });
+      notifications.show({ message: t('common.settingsSaved'), color: 'teal' });
     },
   });
 
@@ -183,33 +185,33 @@ function DisplayScheduleSection() {
     <Card withBorder padding="lg" radius="md">
       <Group gap="xs" mb="md">
         <CalendarClock size={18} />
-        <Title order={4}>Anzeigezeitraum</Title>
+        <Title order={4}>{t('calendar.displayWindow')}</Title>
       </Group>
       <Stack gap="md">
         <Switch
-          label="Kalender-Overlay anzeigen"
-          description="Zeigt die heutigen Termine als Overlay über der Diashow, solange die aktuelle Uhrzeit im angegebenen Zeitraum liegt."
+          label={t('calendar.showOverlay')}
+          description={t('calendar.showOverlayDescription')}
           checked={enabled}
           onChange={(e) => setEnabled(e.currentTarget.checked)}
         />
         <Group grow>
           <TextInput
             type="time"
-            label="Beginn"
+            label={t('common.start')}
             value={start}
             onChange={(e) => setStart(e.currentTarget.value)}
             disabled={!enabled}
           />
           <TextInput
             type="time"
-            label="Ende"
+            label={t('common.end')}
             value={end}
             onChange={(e) => setEnd(e.currentTarget.value)}
             disabled={!enabled}
           />
         </Group>
         <Button onClick={save} loading={updateMutation.isPending} w={{ base: '100%', sm: 200 }}>
-          Speichern
+          {t('common.save')}
         </Button>
       </Stack>
     </Card>

@@ -3,10 +3,12 @@ import { notifications } from '@mantine/notifications';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, EyeOff, Heart } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import styles from './PhotoActionPage.module.css';
 
 export function PhotoActionPage() {
+  const { t } = useTranslation();
   const params = useParams();
   const photoId = Number(params.id);
   const queryClient = useQueryClient();
@@ -22,7 +24,7 @@ export function PhotoActionPage() {
     mutationFn: () => api.photos.favorite(photoId),
     onSuccess: (updated) => {
       queryClient.setQueryData(['photo-actions', photoId], updated);
-      notifications.show({ message: 'Bild favorisiert', color: 'teal' });
+      notifications.show({ message: t('photoAction.favoritedNotification'), color: 'teal' });
     },
   });
 
@@ -31,7 +33,7 @@ export function PhotoActionPage() {
     onSuccess: (updated) => {
       queryClient.setQueryData(['photo-actions', photoId], updated);
       notifications.show({
-        message: 'Bild wird nicht mehr angezeigt',
+        message: t('photoAction.hiddenNotification'),
         color: 'teal',
       });
     },
@@ -42,9 +44,9 @@ export function PhotoActionPage() {
       <main className={styles.page}>
         <Card className={styles.panel} withBorder padding="lg" radius="md">
           <Stack>
-            <Title order={3}>Bild nicht gefunden</Title>
+            <Title order={3}>{t('photoAction.notFound')}</Title>
             <Anchor component={Link} to="/">
-              Zur Diashow
+              {t('photoAction.toSlideshow')}
             </Anchor>
           </Stack>
         </Card>
@@ -56,7 +58,7 @@ export function PhotoActionPage() {
     <main className={styles.page}>
       <Card className={styles.panel} withBorder padding="lg" radius="md">
         <Stack gap="md">
-          <Title order={3}>Aktuelles Bild</Title>
+          <Title order={3}>{t('photoAction.current')}</Title>
           <img
             className={styles.preview}
             src={api.photos.displayUrl(photoId)}
@@ -69,7 +71,7 @@ export function PhotoActionPage() {
               leftSection={<Download size={18} />}
               variant="light"
             >
-              Bild herunterladen
+              {t('photoAction.download')}
             </Button>
             <Button
               leftSection={<Heart size={18} />}
@@ -78,7 +80,7 @@ export function PhotoActionPage() {
               disabled={data?.favorited}
               variant={data?.favorited ? 'default' : 'light'}
             >
-              {data?.favorited ? 'Bild ist favorisiert' : 'Bild favorisieren'}
+              {data?.favorited ? t('photoAction.favorited') : t('photoAction.favorite')}
             </Button>
             <Button
               leftSection={<EyeOff size={18} />}
@@ -89,12 +91,12 @@ export function PhotoActionPage() {
               variant={data?.hidden ? 'default' : 'light'}
             >
               {data?.hidden
-                ? 'Bild wird nicht mehr angezeigt'
-                : 'Bild nicht mehr anzeigen'}
+                ? t('photoAction.hidden')
+                : t('photoAction.hide')}
             </Button>
           </div>
           <Text size="xs" c="dimmed">
-            Die Aktionen werden direkt in Fotify gespeichert.
+            {t('photoAction.saved')}
           </Text>
         </Stack>
       </Card>

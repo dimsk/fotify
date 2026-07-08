@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Alert, Button, Modal, Stack, Tabs, TextInput, PasswordInput, Text } from '@mantine/core';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FolderOpen, Server } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import type { CreateSourceInput } from '../../api/types';
 import { DirectoryBrowser } from '../../components/DirectoryBrowser';
@@ -12,6 +13,7 @@ interface AddSourceModalProps {
 }
 
 export function AddSourceModal({ opened, onClose }: AddSourceModalProps) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<'local' | 'smb'>('local');
 
@@ -72,11 +74,11 @@ export function AddSourceModal({ opened, onClose }: AddSourceModalProps) {
   }
 
   return (
-    <Modal opened={opened} onClose={resetAndClose} title="Quelle hinzufügen" size="lg">
+    <Modal opened={opened} onClose={resetAndClose} title={t('sources.addModalTitle')} size="lg">
       <Stack gap="md">
         <TextInput
-          label="Name"
-          placeholder="z.B. Familienfotos"
+          label={t('common.name')}
+          placeholder={t('sources.exampleName')}
           value={name}
           onChange={(e) => setName(e.currentTarget.value)}
           required
@@ -85,10 +87,10 @@ export function AddSourceModal({ opened, onClose }: AddSourceModalProps) {
         <Tabs value={tab} onChange={(v) => setTab((v as 'local' | 'smb') ?? 'local')}>
           <Tabs.List>
             <Tabs.Tab value="local" leftSection={<FolderOpen size={16} />}>
-              Lokal
+              {t('sources.localTab')}
             </Tabs.Tab>
             <Tabs.Tab value="smb" leftSection={<Server size={16} />}>
-              NAS (SMB)
+              {t('sources.smbTab')}
             </Tabs.Tab>
           </Tabs.List>
 
@@ -97,7 +99,7 @@ export function AddSourceModal({ opened, onClose }: AddSourceModalProps) {
               <DirectoryBrowser listDirectory={(path) => api.sources.browseLocal(path)} onSelect={setLocalPath} />
               {localPath && (
                 <Text size="sm" c="teal">
-                  Ausgewählt: {localPath}
+                  {t('sources.selected', { path: localPath })}
                 </Text>
               )}
             </Stack>
@@ -105,22 +107,22 @@ export function AddSourceModal({ opened, onClose }: AddSourceModalProps) {
 
           <Tabs.Panel value="smb" pt="md">
             <Stack gap="xs">
-              <TextInput label="Host / IP" value={smbHost} onChange={(e) => setSmbHost(e.currentTarget.value)} required />
-              <TextInput label="Freigabename" value={smbShare} onChange={(e) => setSmbShare(e.currentTarget.value)} required />
+               <TextInput label={t('sources.host')} value={smbHost} onChange={(e) => setSmbHost(e.currentTarget.value)} required />
+               <TextInput label={t('sources.shareName')} value={smbShare} onChange={(e) => setSmbShare(e.currentTarget.value)} required />
               <TextInput
-                label="Benutzername"
+                label={t('sources.username')}
                 value={smbUsername}
                 onChange={(e) => setSmbUsername(e.currentTarget.value)}
                 required
               />
               <PasswordInput
-                label="Passwort"
+                label={t('sources.password')}
                 value={smbPassword}
                 onChange={(e) => setSmbPassword(e.currentTarget.value)}
                 required
               />
               <TextInput
-                label="Domain (optional)"
+                label={t('sources.domain')}
                 value={smbDomain}
                 onChange={(e) => setSmbDomain(e.currentTarget.value)}
               />
@@ -131,7 +133,7 @@ export function AddSourceModal({ opened, onClose }: AddSourceModalProps) {
                   disabled={!smbHost || !smbShare || !smbUsername || !smbPassword}
                   onClick={() => setSmbBrowseArmed(true)}
                 >
-                  Verbinden &amp; Ordner durchsuchen
+                  {t('sources.connectBrowse')}
                 </Button>
               ) : (
                 <DirectoryBrowser
@@ -150,7 +152,7 @@ export function AddSourceModal({ opened, onClose }: AddSourceModalProps) {
               )}
               {smbRootPath !== null && (
                 <Text size="sm" c="teal">
-                  Ausgewählter Unterordner: {smbRootPath || '(Freigabe-Hauptverzeichnis)'}
+                  {t('sources.selectedSubfolder', { path: smbRootPath || t('sources.shareRoot') })}
                 </Text>
               )}
             </Stack>
@@ -158,7 +160,7 @@ export function AddSourceModal({ opened, onClose }: AddSourceModalProps) {
         </Tabs>
 
         {createMutation.isError && (
-          <Alert color="red" title="Fehler beim Hinzufügen">
+          <Alert color="red" title={t('sources.addError')}>
             {(createMutation.error as Error).message}
           </Alert>
         )}
@@ -168,7 +170,7 @@ export function AddSourceModal({ opened, onClose }: AddSourceModalProps) {
           disabled={tab === 'local' ? !canSubmitLocal : !canSubmitSmb}
           loading={createMutation.isPending}
         >
-          Quelle hinzufügen
+          {t('sources.add')}
         </Button>
       </Stack>
     </Modal>

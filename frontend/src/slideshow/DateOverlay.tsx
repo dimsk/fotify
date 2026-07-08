@@ -1,18 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { DateOverlayMode } from '../api/types';
 import styles from './DateOverlay.module.css';
-
-const DATE_FORMATTER = new Intl.DateTimeFormat('de-DE', {
-  weekday: 'long',
-  day: '2-digit',
-  month: 'long',
-  year: 'numeric',
-});
-
-const TIME_FORMATTER = new Intl.DateTimeFormat('de-DE', {
-  hour: '2-digit',
-  minute: '2-digit',
-});
 
 interface DateOverlayProps {
   enabled: boolean;
@@ -27,6 +16,7 @@ export function DateOverlay({
   timedVisible,
   companionVisible = false,
 }: DateOverlayProps) {
+  const { i18n } = useTranslation();
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -40,8 +30,16 @@ export function DateOverlay({
 
   return (
     <div className={className} aria-hidden={!visible}>
-      <span className={styles.date}>{DATE_FORMATTER.format(now)}</span>
-      <span className={styles.time}>{TIME_FORMATTER.format(now)}</span>
+      <span className={styles.date}>{new Intl.DateTimeFormat(i18n.language, {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      }).format(now)}</span>
+      <span className={styles.time}>{new Intl.DateTimeFormat(i18n.language, {
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(now)}</span>
     </div>
   );
 }

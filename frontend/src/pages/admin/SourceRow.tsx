@@ -10,6 +10,7 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import {
   FolderOpen,
   MapPin,
@@ -30,14 +31,6 @@ const STATUS_COLOR: Record<Source['status'] | 'backfilling_locations', string> =
     error: 'red',
   };
 
-const STATUS_LABEL: Record<Source['status'] | 'backfilling_locations', string> =
-  {
-    idle: 'idle',
-    scanning: 'scanning',
-    backfilling_locations: 'Standorte',
-    error: 'error',
-  };
-
 interface SourceRowProps {
   source: Source;
   onRescan: (id: number) => void;
@@ -55,6 +48,7 @@ export function SourceRow({
   onResume,
   onDelete,
 }: SourceRowProps) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [locationBackfillActive, setLocationBackfillActive] = useState(false);
   const progress = useScanProgress(
@@ -108,7 +102,7 @@ export function SourceRow({
           {source.name}
           {source.paused && (
             <Badge color="gray" size="sm">
-              Pausiert
+              {t('sources.paused')}
             </Badge>
           )}
         </Group>
@@ -120,7 +114,7 @@ export function SourceRow({
           ) : (
             <Server size={14} />
           )}
-          <Text size="sm">{source.type === 'local' ? 'Lokal' : 'SMB'}</Text>
+          <Text size="sm">{source.type === 'local' ? t('common.local') : 'SMB'}</Text>
         </Group>
       </Table.Td>
       <Table.Td>
@@ -140,7 +134,11 @@ export function SourceRow({
               color={STATUS_COLOR[displayedStatus]}
               style={{ width: 'max-content' }}
             >
-              {STATUS_LABEL[displayedStatus]}
+              {t(
+                displayedStatus === 'backfilling_locations'
+                  ? 'sources.status.backfilling'
+                  : `sources.status.${displayedStatus}`,
+              )}
             </Badge>
           </Tooltip>
           {scanProgress && scanProgress.total > 0 && (
@@ -153,8 +151,11 @@ export function SourceRow({
             <>
               <Text size="xs" c="dimmed">
                 {locationProgress.total > 0
-                  ? `${locationProgress.processed}/${locationProgress.total} Standort(e)`
-                  : 'Standorte werden geprüft...'}
+                  ? t('sources.locationsCount', {
+                      processed: locationProgress.processed,
+                      total: locationProgress.total,
+                    })
+                  : t('sources.checkingLocations')}
               </Text>
               {locationProgress.total > 0 && (
                 <Progress
@@ -169,21 +170,21 @@ export function SourceRow({
           )}
           {isLocationBackfilling && !locationProgress && (
             <Text size="xs" c="dimmed">
-              Standorte werden geprüft...
+              {t('sources.checkingLocations')}
             </Text>
           )}
           {!isLocationBackfilling &&
             !locationProgress &&
             source.photosNeedingLocationBackfill > 0 && (
               <Text size="xs" c="dimmed">
-                {source.photosNeedingLocationBackfill} Standort(e) offen
+                {t('sources.locationsOpen', { count: source.photosNeedingLocationBackfill })}
               </Text>
             )}
         </Stack>
       </Table.Td>
       <Table.Td>
         <Group gap="xs">
-          <Tooltip label="Neu scannen">
+          <Tooltip label={t('sources.rescan')}>
             <ActionIcon
               variant="subtle"
               onClick={() => onRescan(source.id)}
@@ -195,8 +196,8 @@ export function SourceRow({
           <Tooltip
             label={
               source.photosNeedingLocationBackfill === 0
-                ? 'Standorte geprüft'
-                : 'Standorte prüfen'
+                ? t('sources.locationsChecked')
+                : t('sources.checkLocations')
             }
           >
             <ActionIcon
@@ -213,7 +214,7 @@ export function SourceRow({
             </ActionIcon>
           </Tooltip>
           {source.paused ? (
-            <Tooltip label="Fortsetzen">
+            <Tooltip label={t('sources.resume')}>
               <ActionIcon
                 variant="subtle"
                 color="teal"
@@ -223,13 +224,13 @@ export function SourceRow({
               </ActionIcon>
             </Tooltip>
           ) : (
-            <Tooltip label="Pausieren">
+            <Tooltip label={t('sources.pause')}>
               <ActionIcon variant="subtle" onClick={() => onPause(source.id)}>
                 <Pause size={16} />
               </ActionIcon>
             </Tooltip>
           )}
-          <Tooltip label="Löschen">
+          <Tooltip label={t('common.delete')}>
             <ActionIcon
               variant="subtle"
               color="red"
