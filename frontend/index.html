@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!--
+      Plain device-width viewport by default: /photo/:id is opened on real
+      phones via the QR code and needs the normal mobile-responsive layout.
+      The Fire TV Silk fix (pinning width=1920) is applied only while the
+      slideshow route is mounted — see useFixedViewportWidth — so it never
+      affects phones or the desktop admin UI.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fotify</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

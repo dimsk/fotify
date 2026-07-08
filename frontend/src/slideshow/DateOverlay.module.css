@@ -1,0 +1,44 @@
+.dateTime {
+  position: absolute;
+  top: 28px;
+  right: 28px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  color: rgba(255, 255, 255, 0.94);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  pointer-events: none;
+  text-align: right;
+  text-shadow:
+    0 0 14px rgba(0, 0, 0, 0.7),
+    0 2px 5px rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transform: translateY(-8px);
+  transition:
+    opacity 700ms ease,
+    transform 700ms ease;
+}
+
+.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.date {
+  font-size: clamp(0.78rem, 1.1vw, 1.05rem);
+  font-weight: 500;
+  opacity: 0.82;
+}
+
+.time {
+  font-size: clamp(1.8rem, 3.6vw, 4rem);
+  font-weight: 650;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,199 @@
+.root {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  overflow: hidden;
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  opacity: 0;
+  will-change: opacity, transform, filter;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.globalGrain {
+  position: absolute;
+  inset: -64px;
+  z-index: 9;
+  pointer-events: none;
+}
+
+.globalGrain::before,
+.globalGrain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat;
+}
+
+.globalGrain::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='4' seed='8' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='table' tableValues='0.18 0.82'/%3E%3CfeFuncG type='table' tableValues='0.18 0.82'/%3E%3CfeFuncB type='table' tableValues='0.18 0.82'/%3E%3CfeFuncA type='table' tableValues='0 1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  mix-blend-mode: overlay;
+}
+
+.globalGrain::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='224' height='224' viewBox='0 0 224 224'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.42' numOctaves='3' seed='19' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='1 0 0 0 0 0 0.92 0 0 0 0 0 0.82 0 0 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='224' height='224' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-position: 37px 19px;
+  background-size: 224px 224px;
+  mix-blend-mode: soft-light;
+}
+
+.grainLight::before {
+  opacity: 0.12;
+}
+
+.grainLight::after {
+  opacity: 0.045;
+}
+
+.grainStrong::before {
+  opacity: 0.28;
+}
+
+.grainStrong::after {
+  opacity: 0.1;
+}
+
+.fx {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  will-change: opacity, transform;
+}
+
+.fxWash {
+  background: #fff;
+}
+
+.fxGrain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+  mix-blend-mode: overlay;
+}
+
+.fxBloom {
+  mix-blend-mode: screen;
+}
+
+.fxVignette {
+  background: radial-gradient(
+    ellipse at center,
+    transparent 35%,
+    rgba(0, 0, 0, 0.6) 100%
+  );
+  mix-blend-mode: multiply;
+}
+
+.fxParticles {
+  /* A uniform, evenly-spaced grid of small gray squares (not random noise) —
+     a plain, regular veil over the whole frame rather than a flickering
+     texture. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Crect width='4' height='4' fill='%23888888' fill-opacity='0.6'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+}
+
+.cell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  will-change: transform;
+}
+
+/* Optional, purely cosmetic photo frames (a global display choice, set
+   once via Settings — not randomized per photo like the cinematic look).
+   box-sizing: border-box keeps the border/padding inset within the
+   existing 100%x100% cell box rather than growing beyond it. */
+.frameThin .cell img {
+  box-sizing: border-box;
+  border: 3px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.framePolaroid .cell img {
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: #f5f5f0;
+  border-width: 18px 18px 64px 18px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.55);
+}
+
+.caption {
+  position: absolute;
+  bottom: 14px;
+  max-width: calc(100% - 32px);
+  color: rgba(255, 255, 255, 0.92);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  /* The optional location line (set via SlideshowEngine's formatCaption) is
+     joined to the date with a plain "\n" — pre-line renders that as a real
+     line break without needing separate DOM nodes per line. */
+  white-space: pre-line;
+  line-height: 1.4;
+  /* No background pill by design — legibility on both light and dark
+     photos instead comes from a soft, diffuse shadow (no hard stroke or
+     crisp offset shadow, which read as a harsh outline) that gently
+     darkens whatever is directly behind the text. */
+  text-shadow:
+    0 0 10px rgba(0, 0, 0, 0.55),
+    0 1px 4px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.captionBottomLeft .caption {
+  left: 16px;
+  text-align: left;
+}
+
+.captionBottomRight .caption {
+  right: 16px;
+  text-align: right;
+}
+
+.caption:empty {
+  display: none;
+}
+
+.emptyState {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: #000;
+  color: #999;
+  text-align: center;
+  padding: 2rem;
+}
+
+.emptyState a {
+  color: #7dabff;
+}

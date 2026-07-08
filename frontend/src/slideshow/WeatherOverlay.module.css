@@ -1,0 +1,139 @@
+.card {
+  position: absolute;
+  top: 148px;
+  right: 28px;
+  z-index: 20;
+  width: min(360px, calc(100vw - 56px));
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: linear-gradient(
+    145deg,
+    rgba(18, 23, 30, 0.54),
+    rgba(18, 23, 30, 0.28)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 16px 45px rgba(0, 0, 0, 0.38),
+    0 2px 10px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  color: rgba(255, 255, 255, 0.94);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition:
+    opacity 650ms ease,
+    transform 650ms ease;
+}
+
+.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.place {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.condition {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.75rem;
+  opacity: 0.64;
+}
+
+.current {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.currentIcon {
+  width: 36px;
+  height: 36px;
+  color: rgba(255, 255, 255, 0.9);
+  filter: drop-shadow(0 2px 7px rgba(0, 0, 0, 0.35));
+}
+
+.temperature {
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 0.95;
+  font-variant-numeric: tabular-nums;
+}
+
+.meta {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 0.76rem;
+  opacity: 0.74;
+}
+
+.meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.forecast {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.day {
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dayName {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 650;
+  opacity: 0.66;
+}
+
+.dayIcon {
+  margin: 7px 0 4px;
+  width: 22px;
+  height: 22px;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.dayTemp,
+.rain {
+  display: block;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.rain {
+  opacity: 0.65;
+}
+
+.source {
+  display: block;
+  margin-top: 10px;
+  font-size: 0.64rem;
+  opacity: 0.38;
+  text-align: right;
+}

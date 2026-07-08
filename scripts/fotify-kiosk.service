@@ -1,0 +1,25 @@
+# Autostarts the fotify slideshow kiosk on boot for a dedicated display
+# device (e.g. Raspberry Pi connected to a TV).
+#
+# Install (as the user who owns the graphical session, usually "pi"):
+#   mkdir -p ~/.config/systemd/user
+#   cp fotify-kiosk.service ~/.config/systemd/user/
+#   # adjust ExecStart's path below to where you checked out fotify
+#   systemctl --user enable --now fotify-kiosk
+#
+# Requires the graphical session's DISPLAY (usually :0) and a running X
+# server — on Raspberry Pi OS with the default desktop this is already the
+# case once the user is logged in / auto-logged-in.
+
+[Unit]
+Description=Fotify Slideshow Kiosk
+After=graphical-session.target
+
+[Service]
+Environment=DISPLAY=:0
+ExecStart=%h/fotify/scripts/kiosk.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,25 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px 16px;
+  background: #0d0f13;
+}
+
+.panel {
+  width: min(520px, 100%);
+}
+
+.preview {
+  width: 100%;
+  max-height: 58vh;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #050608;
+}
+
+.actions {
+  display: grid;
+  gap: 10px;
+}

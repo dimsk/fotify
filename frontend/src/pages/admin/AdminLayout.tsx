@@ -1,0 +1,101 @@
+import { AppShell, Group, Indicator, NavLink, Title } from '@mantine/core';
+import { useQuery } from '@tanstack/react-query';
+import {
+  BarChart3,
+  Calendar as CalendarIcon,
+  Clock3,
+  CloudSun,
+  FolderOpen,
+  Settings as SettingsIcon,
+  Tv,
+} from 'lucide-react';
+import { Link, Outlet, useLocation } from 'react-router-dom';
+import { api } from '../../api/client';
+
+const SOURCE_HEALTH_POLL_MS = 30_000;
+
+export function AdminLayout() {
+  const location = useLocation();
+
+  // A lightweight background poll so a failed source (e.g. an SMB share
+  // that dropped, especially during an unattended automatic rescan) is
+  // noticed without having to open the Quellen page to see it.
+  const { data: sources } = useQuery({
+    queryKey: ['sources'],
+    queryFn: api.sources.list,
+    refetchInterval: SOURCE_HEALTH_POLL_MS,
+  });
+  const hasSourceError = sources?.some((s) => s.status === 'error') ?? false;
+
+  return (
+    <AppShell navbar={{ width: 240, breakpoint: 'sm' }} padding="md">
+      <AppShell.Navbar p="md">
+        <Group mb="lg" gap="xs">
+          <Tv size={22} />
+          <Title order={4}>Fotify Admin</Title>
+        </Group>
+        <Indicator
+          disabled={!hasSourceError}
+          color="red"
+          position="middle-end"
+          offset={8}
+          w="100%"
+          processing
+        >
+          <NavLink
+            component={Link}
+            to="/admin/sources"
+            label="Quellen"
+            leftSection={<FolderOpen size={18} />}
+            active={location.pathname.startsWith('/admin/sources')}
+          />
+        </Indicator>
+        <NavLink
+          component={Link}
+          to="/admin/settings"
+          label="Diashow-Einstellungen"
+          leftSection={<SettingsIcon size={18} />}
+          active={location.pathname.startsWith('/admin/settings')}
+        />
+        <NavLink
+          component={Link}
+          to="/admin/date"
+          label="Datum"
+          leftSection={<Clock3 size={18} />}
+          active={location.pathname.startsWith('/admin/date')}
+        />
+        <NavLink
+          component={Link}
+          to="/admin/weather"
+          label="Wetter"
+          leftSection={<CloudSun size={18} />}
+          active={location.pathname.startsWith('/admin/weather')}
+        />
+        <NavLink
+          component={Link}
+          to="/admin/calendar"
+          label="Kalender"
+          leftSection={<CalendarIcon size={18} />}
+          active={location.pathname.startsWith('/admin/calendar')}
+        />
+        <NavLink
+          component={Link}
+          to="/admin/statistics"
+          label="Statistik"
+          leftSection={<BarChart3 size={18} />}
+          active={location.pathname.startsWith('/admin/statistics')}
+        />
+        <NavLink
+          component={Link}
+          to="/"
+          label="Zur Diashow"
+          leftSection={<Tv size={18} />}
+          mt="auto"
+        />
+      </AppShell.Navbar>
+      <AppShell.Main>
+        <Outlet />
+      </AppShell.Main>
+    </AppShell>
+  );
+}

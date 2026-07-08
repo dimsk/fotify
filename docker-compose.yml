@@ -1,0 +1,33 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: fotify-backend
+    environment:
+      - NODE_ENV=production
+      - PORT=15765
+    volumes:
+      - /volume1/photo/:/photo/
+      - /volume2/docker/fotify/:/app/data/
+      # Bind-mount a local photo folder here, then add it as a "Local"
+      # source in /admin pointing at the container path on the right, e.g.:
+      # - /path/to/photos:/photos/family:ro
+    restart: unless-stopped
+    networks:
+      - fotify-network
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: fotify-frontend
+    ports:
+      - '${FRONTEND_PORT:-15766}:8080'
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - fotify-network
+
+networks:
+  fotify-network:
+    driver: bridge
