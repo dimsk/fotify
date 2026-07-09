@@ -9,19 +9,17 @@ import {
   SimpleGrid,
   Stack,
   Switch,
-  TextInput,
   Title,
   Text,
 } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
-import { CalendarClock, Clock, Images, LayoutGrid, Wand2 } from 'lucide-react';
+import { Clock, Images, LayoutGrid, Wand2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import type {
   CollageLayoutSelection,
   GrainEffect,
-  Language,
   PhotoCaptionPosition,
   PhotoFrameStyle,
   ShuffleMode,
@@ -61,31 +59,6 @@ const COLLAGE_LAYOUT_VALUES: CollageLayoutSelection[] = [
   'random',
 ];
 
-const FALLBACK_TIMEZONES = [
-  'Europe/Berlin',
-  'Europe/London',
-  'Europe/Paris',
-  'UTC',
-  'America/New_York',
-  'America/Los_Angeles',
-  'Asia/Tokyo',
-  'Australia/Sydney',
-];
-
-function getBrowserTimeZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-}
-
-function getTimeZoneOptions(current: string) {
-  const supported =
-    typeof Intl.supportedValuesOf === 'function'
-      ? Intl.supportedValuesOf('timeZone')
-      : FALLBACK_TIMEZONES;
-  return Array.from(new Set([current, ...supported]))
-    .filter(Boolean)
-    .map((value) => ({ value, label: value.replaceAll('_', ' ') }));
-}
-
 interface SectionProps {
   icon: React.ReactNode;
   title: string;
@@ -112,9 +85,6 @@ export function SettingsPage() {
     queryFn: api.settings.get,
   });
 
-  const [language, setLanguage] = useState<Language>('en');
-  const [clientPresenceDetectionEnabled, setClientPresenceDetectionEnabled] =
-    useState(true);
   const [effects, setEffects] = useState<TransitionEffect[]>(['fade']);
   const [imageSeconds, setImageSeconds] = useState(6);
   const [transitionMs, setTransitionMs] = useState(1200);
@@ -127,11 +97,6 @@ export function SettingsPage() {
     useState<PhotoCaptionPosition>('bottom-right');
   const [grainEffect, setGrainEffect] = useState<GrainEffect>('none');
   const [shuffleMode, setShuffleMode] = useState<ShuffleMode>('all');
-  const [nightModeEnabled, setNightModeEnabled] = useState(false);
-  const [nightModeStart, setNightModeStart] = useState('22:00');
-  const [nightModeEnd, setNightModeEnd] = useState('07:00');
-  const [timeZone, setTimeZone] = useState(getBrowserTimeZone);
-  const [autoRescanEnabled, setAutoRescanEnabled] = useState(false);
   const [collageEnabled, setCollageEnabled] = useState(false);
   const [collageChance, setCollageChance] = useState(20);
   const [collageTimeWindowMinutes, setCollageTimeWindowMinutes] = useState(180);
@@ -141,8 +106,6 @@ export function SettingsPage() {
 
   useEffect(() => {
     if (!settings) return;
-    setLanguage(settings.language);
-    setClientPresenceDetectionEnabled(settings.clientPresenceDetectionEnabled);
     setEffects(settings.transitionEffects);
     setImageSeconds(Math.round(settings.imageDurationMs / 1000));
     setTransitionMs(settings.transitionDurationMs);
@@ -153,11 +116,6 @@ export function SettingsPage() {
     setPhotoCaptionPosition(settings.photoCaptionPosition);
     setGrainEffect(settings.grainEffect);
     setShuffleMode(settings.shuffleMode);
-    setNightModeEnabled(settings.nightModeEnabled);
-    setNightModeStart(settings.nightModeStart);
-    setNightModeEnd(settings.nightModeEnd);
-    setTimeZone(settings.scheduleTimezone ?? getBrowserTimeZone());
-    setAutoRescanEnabled(settings.autoRescanEnabled);
     setCollageEnabled(settings.collageEnabled);
     setCollageChance(settings.collageChance);
     setCollageTimeWindowMinutes(settings.collageTimeWindowMinutes);
@@ -222,8 +180,6 @@ export function SettingsPage() {
 
   function save() {
     updateMutation.mutate({
-      language,
-      clientPresenceDetectionEnabled,
       transitionEffects: effects,
       imageDurationMs: imageSeconds * 1000,
       transitionDurationMs: transitionMs,
@@ -234,11 +190,6 @@ export function SettingsPage() {
       photoCaptionPosition,
       grainEffect,
       shuffleMode,
-      nightModeEnabled,
-      nightModeStart,
-      nightModeEnd,
-      scheduleTimezone: timeZone,
-      autoRescanEnabled,
       collageEnabled,
       collageChance,
       collageTimeWindowMinutes,
@@ -246,11 +197,6 @@ export function SettingsPage() {
     });
   }
 
-  const languageOptions: { value: Language; label: string }[] = [
-    { value: 'en', label: t('common.english') },
-    { value: 'de', label: t('common.german') },
-  ];
-  const timeZoneOptions = getTimeZoneOptions(timeZone);
   const effectOptions = EFFECT_VALUES.map((value) => ({ value, label: t(`options.effects.${value}`) }));
   const shuffleModeOptions: { value: ShuffleMode; label: string }[] = [
     { value: 'all', label: t('options.shuffle.all') },
@@ -280,25 +226,6 @@ export function SettingsPage() {
       <Title order={3}>{t('settings.title')}</Title>
 
       <SimpleGrid cols={{ base: 1, md: 2, lg: 3 }} spacing="lg">
-        <Section icon={<Wand2 size={18} />} title={t('settings.general')}>
-          <Select
-            label={t('common.language')}
-            description={t('settings.languageDescription')}
-            data={languageOptions}
-            value={language}
-            onChange={(v) => v && setLanguage(v as Language)}
-            allowDeselect={false}
-          />
-          <Switch
-            label={t('settings.clientPresenceDetection')}
-            description={t('settings.clientPresenceDetectionDescription')}
-            checked={clientPresenceDetectionEnabled}
-            onChange={(e) =>
-              setClientPresenceDetectionEnabled(e.currentTarget.checked)
-            }
-          />
-        </Section>
-
         <Section icon={<Wand2 size={18} />} title={t('settings.transitions')}>
           <MultiSelect
             label={t('settings.transitionEffects')}
@@ -391,49 +318,6 @@ export function SettingsPage() {
             value={grainEffect}
             onChange={(v) => v && setGrainEffect(v as GrainEffect)}
             allowDeselect={false}
-          />
-        </Section>
-
-        <Section icon={<CalendarClock size={18} />} title={t('settings.schedule')}>
-          <Select
-            label={t('settings.timeZone')}
-            description={t('settings.timeZoneDescription')}
-            data={timeZoneOptions}
-            value={timeZone}
-            onChange={(v) => v && setTimeZone(v)}
-            searchable
-            allowDeselect={false}
-          />
-
-          <Switch
-            label={t('settings.nightMode')}
-            description={t('settings.nightModeDescription')}
-            checked={nightModeEnabled}
-            onChange={(e) => setNightModeEnabled(e.currentTarget.checked)}
-          />
-
-          <Group grow>
-            <TextInput
-              type="time"
-              label={t('common.start')}
-              value={nightModeStart}
-              onChange={(e) => setNightModeStart(e.currentTarget.value)}
-              disabled={!nightModeEnabled}
-            />
-            <TextInput
-              type="time"
-              label={t('common.end')}
-              value={nightModeEnd}
-              onChange={(e) => setNightModeEnd(e.currentTarget.value)}
-              disabled={!nightModeEnabled}
-            />
-          </Group>
-
-          <Switch
-            label={t('settings.autoRescan')}
-            description={t('settings.autoRescanDescription')}
-            checked={autoRescanEnabled}
-            onChange={(e) => setAutoRescanEnabled(e.currentTarget.checked)}
           />
         </Section>
 

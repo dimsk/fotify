@@ -27,6 +27,7 @@
   "nav": {
     "adminTitle": "Fotify Admin",
     "sources": "Sources",
+    "general": "General",
     "slideshowSettings": "Slideshow settings",
     "date": "Date",
     "weather": "Weather",

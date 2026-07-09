@@ -6,6 +6,7 @@ import {
   Clock3,
   CloudSun,
   FolderOpen,
+  SlidersHorizontal,
   Settings as SettingsIcon,
   Tv,
 } from 'lucide-react';
@@ -54,9 +55,16 @@ export function AdminLayout() {
         </Indicator>
         <NavLink
           component={Link}
+          to="/admin/general"
+          label={t('nav.general')}
+          leftSection={<SettingsIcon size={18} />}
+          active={location.pathname.startsWith('/admin/general')}
+        />
+        <NavLink
+          component={Link}
           to="/admin/settings"
           label={t('nav.slideshowSettings')}
-          leftSection={<SettingsIcon size={18} />}
+          leftSection={<SlidersHorizontal size={18} />}
           active={location.pathname.startsWith('/admin/settings')}
         />
         <NavLink

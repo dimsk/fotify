@@ -7,6 +7,7 @@ import { SlideshowPage } from './pages/SlideshowPage';
 import { PhotoActionPage } from './pages/PhotoActionPage';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { SourcesPage } from './pages/admin/SourcesPage';
+import { GeneralPage } from './pages/admin/GeneralPage';
 import { SettingsPage } from './pages/admin/SettingsPage';
 import { StatisticsPage } from './pages/admin/StatisticsPage';
 import { CalendarPage } from './pages/admin/CalendarPage';
@@ -23,6 +24,7 @@ export function App() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Navigate to="sources" replace />} />
           <Route path="sources" element={<SourcesPage />} />
+          <Route path="general" element={<GeneralPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="date" element={<DatePage />} />
           <Route path="weather" element={<WeatherPage />} />
