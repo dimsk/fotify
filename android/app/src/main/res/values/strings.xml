@@ -24,4 +24,8 @@
     <string name="connection_error_title">Cannot reach server</string>
     <string name="retry">RETRY</string>
     <string name="change_server">CHANGE SERVER</string>
+
+    <!-- Hint lines shown in overlays to explain the remote control behaviour -->
+    <string name="back_hint_retry">Press BACK to retry  ·  Long-press BACK to quit</string>
+    <string name="back_hint_admin">Press BACK to open admin  ·  Long-press BACK to quit</string>
 </resources>

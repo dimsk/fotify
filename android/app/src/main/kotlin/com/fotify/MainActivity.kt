@@ -12,11 +12,11 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.webkit.*
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import com.fotify.databinding.ActivityMainBinding
 import kotlinx.coroutines.*
@@ -32,27 +32,33 @@ import java.net.URL
  *
  * Key behaviour
  * ─────────────
- * • BACK (short press) — toggles between slideshow `/` and admin `/admin`
- * • BACK (long press)  — closes the app
+ * • BACK (short) + connection-error overlay visible → retry reload
+ * • BACK (short) + empty-state overlay visible      → open /admin
+ * • BACK (short) + no overlay, on slideshow         → open /admin
+ * • BACK (short) + no overlay, on admin             → back to slideshow
+ * • BACK (long)                                     → close app
  * • Screen never sleeps (FLAG_KEEP_SCREEN_ON)
  * • Immersive fullscreen (system bars hidden)
- * • Polls `/photos/current-slide` every 5 s to detect empty state
- * • Shows overlay when no sources are configured yet
- * • Shows overlay when the server is unreachable
+ * • Polls /photos/current-slide every 5 s for empty-state detection
  */
 class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
         private const val POLL_INTERVAL_MS = 5_000L
-        private const val CONNECT_TIMEOUT_MS = 3_000
-        private const val READ_TIMEOUT_MS = 3_000
+        private const val HTTP_TIMEOUT_MS = 3_000
+        /** Number of consecutive main-frame errors before showing the error overlay. */
+        private const val ERROR_RETRY_THRESHOLD = 1
     }
 
     private lateinit var binding: ActivityMainBinding
     private var serverUrl: String = ""
     private var isAtAdmin = false
     private var pollingJob: Job? = null
+    private var retryJob: Job? = null
+
+    /** Counts consecutive main-frame network errors since last successful page load. */
+    private var consecutiveErrors = 0
 
     // ── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -64,7 +70,6 @@ class MainActivity : AppCompatActivity() {
 
         val prefs = Prefs.get(this)
         serverUrl = prefs.serverUrl ?: run {
-            // No server configured → go back to discovery
             startActivity(Intent(this, DiscoveryActivity::class.java))
             finish()
             return
@@ -82,12 +87,13 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         applyFullscreen()
-        if (!isAtAdmin) startPolling()
+        if (!isAtAdmin && !binding.connectionErrorOverlay.isVisible) startPolling()
     }
 
     override fun onPause() {
         super.onPause()
         stopPolling()
+        retryJob?.cancel()
     }
 
     override fun onDestroy() {
@@ -135,6 +141,9 @@ class MainActivity : AppCompatActivity() {
     private fun buildWebViewClient() = object : WebViewClient() {
 
         override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+            // New load attempt: reset error counter and hide stale overlays
+            consecutiveErrors = 0
+            retryJob?.cancel()
             hideAllOverlays()
         }
 
@@ -144,18 +153,27 @@ class MainActivity : AppCompatActivity() {
             if (!isAtAdmin) startPolling() else stopPolling()
         }
 
-        // API 23+ error handling (main-frame only)
+        // ── Main-frame error: retry once silently, then show overlay ──────
+
+        // API 23+ (preferred path – only fires for this specific request)
         override fun onReceivedError(
             view: WebView?,
             request: WebResourceRequest?,
             error: WebResourceError?,
         ) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                if (request?.isForMainFrame == true) showConnectionError()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                request?.isForMainFrame == true
+            ) {
+                val description = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                    error?.description?.toString() ?: "" else ""
+                val errorCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                    error?.errorCode ?: -1 else -1
+                Log.w(TAG, "Main-frame error $errorCode: $description (url=${request.url})")
+                handleMainFrameError("$description (code $errorCode)")
             }
         }
 
-        // Legacy (API < 23)
+        // Legacy API < 23
         @Suppress("DEPRECATION", "OverridingDeprecatedMember")
         override fun onReceivedError(
             view: WebView?,
@@ -164,19 +182,40 @@ class MainActivity : AppCompatActivity() {
             failingUrl: String?,
         ) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-                showConnectionError()
+                Log.w(TAG, "Legacy main-frame error $errorCode: $description")
+                handleMainFrameError("$description (code $errorCode)")
             }
         }
 
         @Suppress("DEPRECATION")
-        override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
-            // Reject SSL errors (local servers use plain HTTP anyway)
+        override fun onReceivedSslError(
+            view: WebView?,
+            handler: SslErrorHandler?,
+            error: SslError?,
+        ) {
             handler?.cancel()
         }
     }
 
+    private fun handleMainFrameError(description: String) {
+        consecutiveErrors++
+        if (consecutiveErrors > ERROR_RETRY_THRESHOLD) {
+            // Multiple failures → show overlay
+            showConnectionError(description)
+        } else {
+            // First failure → silent retry after 2 s
+            retryJob?.cancel()
+            retryJob = lifecycleScope.launch {
+                delay(2_000)
+                if (isActive) {
+                    Log.d(TAG, "Silent retry after first main-frame error")
+                    loadSlideshow()
+                }
+            }
+        }
+    }
+
     private fun buildWebChromeClient() = object : WebChromeClient() {
-        // Allow video autoplay / fullscreen video inside the WebView
         override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
             super.onShowCustomView(view, callback)
         }
@@ -202,7 +241,15 @@ class MainActivity : AppCompatActivity() {
         loadSlideshow()
     }
 
-    // ── Key handling (BACK short → admin toggle, BACK long → exit) ────────
+    // ── Key handling ──────────────────────────────────────────────────────
+    //
+    // BACK (short press):
+    //   connection-error overlay visible  → retry
+    //   empty-state overlay visible       → open /admin
+    //   on slideshow (no overlay)         → open /admin
+    //   on admin                          → back to slideshow
+    //
+    // BACK (long press): close the app
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
@@ -214,7 +261,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            // Long-press BACK → close the app
             finishAndRemoveTask()
             return true
         }
@@ -223,9 +269,23 @@ class MainActivity : AppCompatActivity() {
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (event.isCanceled) return true   // was a long press; already handled
-            // Short-press BACK → toggle slideshow ↔ admin
-            if (isAtAdmin) navigateToSlideshow() else navigateToAdmin()
+            if (event.isCanceled) return true  // was a long press – already handled
+
+            when {
+                // Error overlay: short BACK = retry connecting
+                binding.connectionErrorOverlay.isVisible -> {
+                    consecutiveErrors = 0
+                    hideAllOverlays()
+                    loadSlideshow()
+                }
+                // Empty-state overlay: short BACK = open admin so user can add sources
+                binding.emptyStateOverlay.isVisible -> {
+                    navigateToAdmin()
+                }
+                // Normal mode: toggle slideshow ↔ admin
+                isAtAdmin -> navigateToSlideshow()
+                else -> navigateToAdmin()
+            }
             return true
         }
         return super.onKeyUp(keyCode, event)
@@ -234,28 +294,31 @@ class MainActivity : AppCompatActivity() {
     // ── Overlay management ────────────────────────────────────────────────
 
     private fun setupOverlayButtons() {
-        // Connection-error overlay buttons
         binding.retryButton.setOnClickListener {
+            consecutiveErrors = 0
             hideAllOverlays()
             loadSlideshow()
         }
         binding.changeServerButton.setOnClickListener { changeServer() }
-
-        // Empty-state overlay button
         binding.changeServerButton2.setOnClickListener { changeServer() }
     }
 
-    private fun showConnectionError() {
+    private fun showConnectionError(description: String = "") {
         stopPolling()
-        binding.connectionErrorOverlay.visibility = View.VISIBLE
+        retryJob?.cancel()
         binding.emptyStateOverlay.visibility = View.GONE
+        binding.connectionErrorOverlay.visibility = View.VISIBLE
         binding.connectionErrorUrl.text = serverUrl
+        binding.connectionErrorDetail.text = description.ifEmpty { "" }
+        // Move D-pad focus to the first actionable button in the overlay
+        binding.retryButton.requestFocus()
     }
 
     private fun showEmptyStateOverlay() {
-        if (binding.connectionErrorOverlay.visibility == View.VISIBLE) return
+        if (binding.connectionErrorOverlay.isVisible) return
         binding.emptyStateOverlay.visibility = View.VISIBLE
         binding.adminUrlText.text = "$serverUrl/admin"
+        binding.changeServerButton2.requestFocus()
     }
 
     private fun hideEmptyStateOverlay() {
@@ -265,10 +328,12 @@ class MainActivity : AppCompatActivity() {
     private fun hideAllOverlays() {
         binding.emptyStateOverlay.visibility = View.GONE
         binding.connectionErrorOverlay.visibility = View.GONE
+        if (!isAtAdmin) startPolling()
     }
 
     private fun changeServer() {
         stopPolling()
+        retryJob?.cancel()
         Prefs.get(this).clear()
         startActivity(Intent(this, DiscoveryActivity::class.java))
         finish()
@@ -279,9 +344,11 @@ class MainActivity : AppCompatActivity() {
     private fun startPolling() {
         if (pollingJob?.isActive == true) return
         pollingJob = lifecycleScope.launch {
-            delay(1_500)   // Let the page load first
+            delay(1_500)
             while (isActive) {
-                if (!isAtAdmin) checkSlideshowState()
+                if (!isAtAdmin && !binding.connectionErrorOverlay.isVisible) {
+                    checkSlideshowState()
+                }
                 delay(POLL_INTERVAL_MS)
             }
         }
@@ -298,11 +365,7 @@ class MainActivity : AppCompatActivity() {
         } ?: return
 
         withContext(Dispatchers.Main) {
-            if (type == "empty") {
-                checkSourceCount()
-            } else {
-                hideEmptyStateOverlay()
-            }
+            if (type == "empty") checkSourceCount() else hideEmptyStateOverlay()
         }
     }
 
@@ -310,13 +373,10 @@ class MainActivity : AppCompatActivity() {
         val isEmpty = withContext(Dispatchers.IO) {
             val body = fetchText("$serverUrl/sources") ?: return@withContext true
             try {
-                // Sources endpoint returns a plain JSON array
                 JSONArray(body).length() == 0
             } catch (_: Exception) {
-                // Fallback: try {data: [...]} shape
                 try {
-                    val obj = JSONObject(body)
-                    obj.optJSONArray("data")?.length() == 0
+                    JSONObject(body).optJSONArray("data")?.length() == 0 ?: true
                 } catch (_: Exception) {
                     true
                 }
@@ -329,23 +389,19 @@ class MainActivity : AppCompatActivity() {
 
     // ── HTTP helpers ──────────────────────────────────────────────────────
 
-    private fun fetchText(urlString: String): String? {
-        return try {
-            val conn = URL(urlString).openConnection() as HttpURLConnection
-            conn.connectTimeout = CONNECT_TIMEOUT_MS
-            conn.readTimeout = READ_TIMEOUT_MS
-            conn.connect()
-            if (conn.responseCode != 200) return null
-            BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
-                .also { conn.disconnect() }
-        } catch (e: Exception) {
-            Log.w(TAG, "HTTP fetch failed for $urlString: ${e.message}")
-            null
-        }
+    private fun fetchText(urlString: String): String? = try {
+        val conn = URL(urlString).openConnection() as HttpURLConnection
+        conn.connectTimeout = HTTP_TIMEOUT_MS
+        conn.readTimeout = HTTP_TIMEOUT_MS
+        conn.connect()
+        if (conn.responseCode != 200) null
+        else BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
+            .also { conn.disconnect() }
+    } catch (e: Exception) {
+        Log.w(TAG, "HTTP fetch failed [$urlString]: ${e.message}")
+        null
     }
 
     private fun fetchJson(urlString: String): JSONObject? =
-        fetchText(urlString)?.let { body ->
-            try { JSONObject(body) } catch (_: Exception) { null }
-        }
+        fetchText(urlString)?.let { try { JSONObject(it) } catch (_: Exception) { null } }
 }

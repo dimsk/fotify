@@ -12,7 +12,9 @@
         android:layout_height="match_parent" />
 
     <!-- ═══════════════════ Empty-state overlay ══════════════════════════
-         Shown when the server is reachable but no photo sources are configured. -->
+         Shown when the server is reachable but no photo sources are configured.
+         clickable + focusable so the overlay captures D-pad / remote input
+         and doesn't fall through to the WebView behind it. -->
     <LinearLayout
         android:id="@+id/emptyStateOverlay"
         android:layout_width="wrap_content"
@@ -21,6 +23,8 @@
         android:background="@drawable/overlay_background"
         android:orientation="vertical"
         android:padding="40dp"
+        android:clickable="true"
+        android:focusable="true"
         android:visibility="gone">
 
         <TextView
@@ -40,7 +44,7 @@
             android:textSize="15sp"
             android:layout_marginBottom="20dp" />
 
-        <!-- Admin URL: monospace, highlighted -->
+        <!-- Admin URL highlighted in monospace blue -->
         <TextView
             android:id="@+id/adminUrlText"
             android:layout_width="wrap_content"
@@ -54,7 +58,15 @@
             android:paddingEnd="14dp"
             android:paddingTop="8dp"
             android:paddingBottom="8dp"
-            android:layout_marginBottom="28dp" />
+            android:layout_marginBottom="10dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/back_hint_admin"
+            android:textColor="#666666"
+            android:textSize="13sp"
+            android:layout_marginBottom="24dp" />
 
         <Button
             android:id="@+id/changeServerButton2"
@@ -63,12 +75,13 @@
             android:layout_height="wrap_content"
             android:text="@string/change_server"
             android:textColor="#AAAAAA"
-            android:strokeColor="#444444" />
+            android:focusable="true" />
 
     </LinearLayout>
 
     <!-- ═══════════════════ Connection-error overlay ══════════════════════
-         Shown when the WebView cannot reach the server at all. -->
+         Shown when the WebView cannot reach the server at all.
+         clickable + focusable so the overlay captures D-pad / remote input. -->
     <LinearLayout
         android:id="@+id/connectionErrorOverlay"
         android:layout_width="wrap_content"
@@ -77,6 +90,8 @@
         android:background="@drawable/overlay_background"
         android:orientation="vertical"
         android:padding="40dp"
+        android:clickable="true"
+        android:focusable="true"
         android:visibility="gone">
 
         <TextView
@@ -88,6 +103,7 @@
             android:textStyle="bold"
             android:layout_marginBottom="12dp" />
 
+        <!-- Server URL that was attempted -->
         <TextView
             android:id="@+id/connectionErrorUrl"
             android:layout_width="wrap_content"
@@ -95,7 +111,25 @@
             android:textColor="#AAAAAA"
             android:textSize="15sp"
             android:fontFamily="monospace"
-            android:layout_marginBottom="28dp" />
+            android:layout_marginBottom="6dp" />
+
+        <!-- Technical error detail (e.g. "net::ERR_CONNECTION_REFUSED (code -6)") -->
+        <TextView
+            android:id="@+id/connectionErrorDetail"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#555555"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:layout_marginBottom="6dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/back_hint_retry"
+            android:textColor="#555555"
+            android:textSize="13sp"
+            android:layout_marginBottom="24dp" />
 
         <LinearLayout
             android:layout_width="wrap_content"
@@ -109,6 +143,7 @@
                 android:text="@string/retry"
                 android:textColor="@android:color/white"
                 android:backgroundTint="#1565C0"
+                android:focusable="true"
                 android:layout_marginEnd="12dp" />
 
             <Button
@@ -118,7 +153,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/change_server"
                 android:textColor="#AAAAAA"
-                android:strokeColor="#444444" />
+                android:focusable="true" />
 
         </LinearLayout>
 
