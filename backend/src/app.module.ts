@@ -11,6 +11,7 @@ import { ScanModule } from './scan/scan.module';
 import { FileProvidersModule } from './file-providers/file-providers.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { WeatherModule } from './weather/weather.module';
+import { MdnsModule } from './mdns/mdns.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { WeatherModule } from './weather/weather.module';
     ScanModule,
     CalendarModule,
     WeatherModule,
+    MdnsModule,
   ],
 })
 export class AppModule {}

@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Server discovery screen.
+  Landscape two-column layout that works well on TV remotes and 10-foot UI.
+  Left column: branding  |  Right column: server list + manual input
+-->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_dark"
+    android:orientation="horizontal"
+    android:padding="52dp">
+
+    <!-- ═══════════════════════ Left – Branding ═══════════════════════════ -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:paddingEnd="56dp">
+
+        <!-- App name -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textColor="@android:color/white"
+            android:textSize="52sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.15"
+            android:layout_marginBottom="12dp" />
+
+        <!-- Tagline -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/discovery_tagline"
+            android:textColor="#777788"
+            android:textSize="18sp"
+            android:layout_marginBottom="52dp" />
+
+        <!-- Scanning indicator -->
+        <TextView
+            android:id="@+id/scanningLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/scanning"
+            android:textColor="#64B5F6"
+            android:textSize="15sp" />
+
+    </LinearLayout>
+
+    <!-- ═══════════════════ Right – Server list + manual ══════════════════ -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1.6"
+        android:orientation="vertical"
+        android:gravity="center_vertical">
+
+        <!-- Section label -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/found_servers_label"
+            android:textColor="#666677"
+            android:textSize="11sp"
+            android:textAllCaps="true"
+            android:letterSpacing="0.12"
+            android:layout_marginBottom="10dp" />
+
+        <!-- Discovered server list (dynamic height, max ~40 % of screen) -->
+        <ListView
+            android:id="@+id/serverList"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:scrollbars="none"
+            android:visibility="gone" />
+
+        <!-- Placeholder shown while no servers found yet -->
+        <TextView
+            android:id="@+id/noServersHint"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:text="@string/no_servers_hint"
+            android:textColor="#444455"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:visibility="visible" />
+
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#222233"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- Section label -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/manual_entry_label"
+            android:textColor="#666677"
+            android:textSize="11sp"
+            android:textAllCaps="true"
+            android:letterSpacing="0.12"
+            android:layout_marginBottom="10dp" />
+
+        <!-- Input row: [http://] [IP:Port EditText] [CONNECT button] -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <!-- http:// prefix chip -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="http://"
+                android:textColor="#64B5F6"
+                android:textSize="17sp"
+                android:fontFamily="monospace"
+                android:background="@drawable/input_prefix_bg"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:gravity="center_vertical" />
+
+            <!-- IP:Port text field -->
+            <EditText
+                android:id="@+id/manualUrl"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="@string/manual_url_hint"
+                android:textColor="@android:color/white"
+                android:textColorHint="#444455"
+                android:textSize="17sp"
+                android:fontFamily="monospace"
+                android:background="@drawable/input_field_bg"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:inputType="textUri"
+                android:imeOptions="actionGo"
+                android:maxLines="1"
+                android:layout_marginStart="2dp" />
+
+            <!-- Connect button -->
+            <Button
+                android:id="@+id/connectButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/connect"
+                android:textColor="@android:color/white"
+                android:backgroundTint="@color/accent_blue"
+                android:layout_marginStart="10dp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

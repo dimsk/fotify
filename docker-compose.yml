@@ -3,9 +3,12 @@ services:
     build:
       context: ./backend
     container_name: fotify-backend
+    network_mode: host
     environment:
       - NODE_ENV=production
       - PORT=15765
+      # Advertised via mDNS so the Android client can discover the server
+      - FRONTEND_PORT=${FRONTEND_PORT:-15766}
     volumes:
       - /volume1/photo/:/photo/
       - /volume2/docker/fotify/:/app/data/
@@ -13,21 +16,15 @@ services:
       # source in /admin pointing at the container path on the right, e.g.:
       # - /path/to/photos:/photos/family:ro
     restart: unless-stopped
-    networks:
-      - fotify-network
 
   frontend:
     build:
       context: ./frontend
     container_name: fotify-frontend
-    ports:
-      - '${FRONTEND_PORT:-15766}:8080'
+    network_mode: host
+    environment:
+      # nginx listens on this port; must match FRONTEND_PORT in .env
+      - NGINX_PORT=${FRONTEND_PORT:-15766}
     depends_on:
       - backend
     restart: unless-stopped
-    networks:
-      - fotify-network
-
-networks:
-  fotify-network:
-    driver: bridge

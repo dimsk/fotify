@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="accent_blue">#1565C0</color>
+    <color name="accent_blue_dark">#0D47A1</color>
+    <color name="bg_dark">#0F0F1A</color>
+    <color name="overlay_bg">#E0050510</color>
+</resources>

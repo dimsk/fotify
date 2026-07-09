@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Single row in the discovered-server list -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/server_item_bg"
+    android:paddingStart="18dp"
+    android:paddingEnd="18dp"
+    android:paddingTop="14dp"
+    android:paddingBottom="14dp"
+    android:layout_marginBottom="8dp"
+    android:focusable="true"
+    android:clickable="true">
+
+    <!-- mDNS service name, e.g. "Fotify@raspberrypi" -->
+    <TextView
+        android:id="@+id/serverName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@android:color/white"
+        android:textSize="17sp"
+        android:textStyle="bold" />
+
+    <!-- IP and port in monospace blue, e.g. "192.168.1.100  ·  15766" -->
+    <TextView
+        android:id="@+id/serverAddress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#64B5F6"
+        android:textSize="13sp"
+        android:fontFamily="monospace"
+        android:layout_marginTop="2dp" />
+
+</LinearLayout>

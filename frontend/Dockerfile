@@ -12,7 +12,15 @@ RUN npm run build
 
 FROM nginx:stable-alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 8080
-CMD ["nginx", "-g", "daemon off;"]
+# nginx.conf contains ${NGINX_PORT} which is substituted at container start
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+
+ENV NGINX_PORT=15766
+EXPOSE 15766
+
+# envsubst substitutes only ${NGINX_PORT}; all other nginx $variables are
+# passed through unchanged so they are evaluated by nginx at runtime.
+CMD ["/bin/sh", "-c", \
+  "envsubst '${NGINX_PORT}' < /etc/nginx/templates/default.conf.template \
+   > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"]
