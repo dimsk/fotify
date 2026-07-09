@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Settings, WeatherOverlayMode } from '../settings/settings.entity';
+import { DEFAULT_SETTINGS } from '../settings/settings-defaults';
 import { UpdateWeatherSettingsDto } from './update-weather-settings.dto';
 
 const SETTINGS_ID = 1;
@@ -214,7 +215,7 @@ export class WeatherService {
   private async getSettingsEntity(): Promise<Settings> {
     let settings = await this.settingsRepo.findOneBy({ id: SETTINGS_ID });
     if (!settings) {
-      settings = this.settingsRepo.create({ id: SETTINGS_ID });
+      settings = this.settingsRepo.create({ id: SETTINGS_ID, ...DEFAULT_SETTINGS });
       await this.settingsRepo.save(settings);
     }
     return settings;

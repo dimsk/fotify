@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Settings } from './settings.entity';
 import { UpdateSettingsDto } from './update-settings.dto';
+import { DEFAULT_SETTINGS } from './settings-defaults';
 
 const SETTINGS_ID = 1;
 
@@ -15,7 +16,7 @@ export class SettingsService {
   async get(): Promise<Settings> {
     let settings = await this.settingsRepo.findOneBy({ id: SETTINGS_ID });
     if (!settings) {
-      settings = this.settingsRepo.create({ id: SETTINGS_ID });
+      settings = this.settingsRepo.create({ id: SETTINGS_ID, ...DEFAULT_SETTINGS });
       await this.settingsRepo.save(settings);
     }
     return settings;

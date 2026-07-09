@@ -15,6 +15,7 @@ import {
   pickCollageLayout,
 } from './collage-layouts';
 import { isWithinTimeWindow } from '../common/time-window.util';
+import { DEFAULT_SETTINGS } from '../settings/settings-defaults';
 
 const ROTATION_DURATION_MS = 60 * 60 * 1000; // 1 hour
 const LOOKAHEAD_DEPTH = 10;
@@ -405,12 +406,14 @@ export class SlideshowStateService implements OnApplicationBootstrap {
       // SlideshowEngine's applyCollageLayout), so a busier container-level
       // effect (dip-to-black, exposure flash, etc.) would just fight it.
       const lookCinematic =
-        !asleep && Math.random() * 100 < (settings?.cinematicChance ?? 0);
+        !asleep &&
+        Math.random() * 100 <
+          (settings?.cinematicChance ?? DEFAULT_SETTINGS.cinematicChance!);
       const effect =
         lookCinematic || plan.type === 'collage'
           ? 'fade'
           : pickEffect(
-              settings?.transitionEffects ?? ['fade'],
+              settings?.transitionEffects ?? DEFAULT_SETTINGS.transitionEffects!,
               this.lastEffect,
             );
       this.lastEffect = effect;
@@ -432,7 +435,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
 
       // Collages carry more to look at (up to 12 photos) than a single or
       // triple slide, so they stay on screen twice as long.
-      const baseDuration = settings?.imageDurationMs ?? 6000;
+      const baseDuration = settings?.imageDurationMs ?? DEFAULT_SETTINGS.imageDurationMs!;
       const imageDurationMs =
         plan.type === 'collage' ? baseDuration * 2 : baseDuration;
 
@@ -443,7 +446,8 @@ export class SlideshowStateService implements OnApplicationBootstrap {
         lookCinematic,
         startedAt: Date.now(),
         imageDurationMs,
-        transitionDurationMs: settings?.transitionDurationMs ?? 1200,
+        transitionDurationMs:
+          settings?.transitionDurationMs ?? DEFAULT_SETTINGS.transitionDurationMs!,
       };
 
       if (plan.photos.length > 0) {
@@ -466,12 +470,13 @@ export class SlideshowStateService implements OnApplicationBootstrap {
    * lookahead buffer (see advance()).
    */
   private isNightModeActive(settings: Settings | null): boolean {
-    if (!settings?.nightModeEnabled) return false;
+    const enabled = settings?.nightModeEnabled ?? DEFAULT_SETTINGS.nightModeEnabled!;
+    if (!enabled) return false;
     return isWithinTimeWindow(
       new Date(),
-      settings.nightModeStart,
-      settings.nightModeEnd,
-      settings.scheduleTimezone,
+      settings?.nightModeStart ?? DEFAULT_SETTINGS.nightModeStart!,
+      settings?.nightModeEnd ?? DEFAULT_SETTINGS.nightModeEnd!,
+      settings?.scheduleTimezone ?? DEFAULT_SETTINGS.scheduleTimezone!,
     );
   }
 
@@ -521,7 +526,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
 
   private async pickSlidePlan(): Promise<InternalSlidePlan> {
     const settings = await this.settingsRepo.findOneBy({ id: 1 });
-    const avoidRepeats = settings?.avoidRepeats ?? false;
+    const avoidRepeats = settings?.avoidRepeats ?? DEFAULT_SETTINGS.avoidRepeats!;
     const sourceId = await this.resolveActiveSourceId(settings);
 
     // Collage is a probability-gated pre-check, not a third term in the
@@ -531,17 +536,17 @@ export class SlideshowStateService implements OnApplicationBootstrap {
     // exist. When enabled and the roll hits, try it first; if no valid
     // cluster exists (e.g. no EXIF capture dates), fall through to the
     // normal single/triple logic unchanged.
-    if (
-      settings?.collageEnabled &&
-      Math.random() * 100 < settings.collageChance
-    ) {
-      const layout = pickCollageLayout(settings.collageLayouts);
+    const collageEnabled = settings?.collageEnabled ?? DEFAULT_SETTINGS.collageEnabled!;
+    const collageChance = settings?.collageChance ?? DEFAULT_SETTINGS.collageChance!;
+    const collageLayouts = settings?.collageLayouts ?? DEFAULT_SETTINGS.collageLayouts!;
+    if (collageEnabled && Math.random() * 100 < collageChance) {
+      const layout = pickCollageLayout(collageLayouts);
       const count = COLLAGE_LAYOUT_PHOTO_COUNTS[layout];
       const cluster = await this.randomTemporalCluster(
         sourceId,
         avoidRepeats,
         count,
-        settings.collageTimeWindowMinutes,
+        settings?.collageTimeWindowMinutes ?? DEFAULT_SETTINGS.collageTimeWindowMinutes!,
       );
       if (cluster) {
         return { type: 'collage', photos: cluster, layout };
@@ -568,7 +573,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
 
     if (canTriple && Math.random() < pTriple) {
       const photos =
-        (settings?.adjacentPortraitTriples ?? true)
+        (settings?.adjacentPortraitTriples ?? DEFAULT_SETTINGS.adjacentPortraitTriples!)
           ? await this.randomAdjacentPortraitTriple(sourceId, avoidRepeats)
           : await this.randomPhotos('portrait', 3, sourceId, avoidRepeats).then(
               (p): [Photo, Photo, Photo] => [p[0], p[1], p[2]],

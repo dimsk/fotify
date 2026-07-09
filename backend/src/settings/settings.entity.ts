@@ -69,7 +69,7 @@ export class Settings {
   @Column({ type: 'simple-array', default: 'fade' })
   transitionEffects: TransitionEffect[];
 
-  @Column({ type: 'int', default: 1200 })
+  @Column({ type: 'int', default: 1500 })
   transitionDurationMs: number;
 
   /**
@@ -78,14 +78,14 @@ export class Settings {
    * When it applies, the transition into that slide is forced to a plain
    * fade regardless of transitionEffects, so the grade reads cleanly.
    */
-  @Column({ type: 'int', default: 0 })
+  @Column({ type: 'int', default: 60 })
   cinematicChance: number;
 
-  @Column({ type: 'int', default: 6000 })
+  @Column({ type: 'int', default: 25000 })
   imageDurationMs: number;
 
   /** If true, never-shown photos are preferred over already-shown ones. */
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: 'boolean', default: true })
   avoidRepeats: boolean;
 
   /**
@@ -124,7 +124,7 @@ export class Settings {
   photoCaptionPosition: PhotoCaptionPosition;
 
   /** Persistent full-frame film grain overlay intensity — a global display choice, not a transition effect. */
-  @Column({ type: 'text', default: 'none' })
+  @Column({ type: 'text', default: 'strong' })
   grainEffect: GrainEffect;
 
   /**
@@ -133,13 +133,13 @@ export class Settings {
    * (wrapping across midnight when start > end). The lookahead buffer isn't
    * touched — it resumes exactly where it left off once the window ends.
    */
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: 'boolean', default: true })
   nightModeEnabled: boolean;
 
-  @Column({ type: 'text', default: '22:00' })
+  @Column({ type: 'text', default: '01:00' })
   nightModeStart: string;
 
-  @Column({ type: 'text', default: '07:00' })
+  @Column({ type: 'text', default: '07:30' })
   nightModeEnd: string;
 
   /** Timezone used for slideshow schedules such as night mode and calendar overlay windows. */
@@ -162,7 +162,7 @@ export class Settings {
   calendarOverlayEnd: string;
 
   /** If true, the current date/time is rendered in the slideshow's top-right corner. */
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: 'boolean', default: true })
   dateOverlayEnabled: boolean;
 
   /**
@@ -173,7 +173,7 @@ export class Settings {
   dateOverlayMode: DateOverlayMode;
 
   /** If true, the slideshow can show the configured location's weather overlay. */
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: 'boolean', default: true })
   weatherOverlayEnabled: boolean;
 
   /**
@@ -219,11 +219,11 @@ export class Settings {
    * photo or portrait triple — see collageChance/collageTimeWindowMinutes/
    * collageMin/MaxPhotos and SlideshowStateService.randomTemporalCluster().
    */
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: 'boolean', default: true })
   collageEnabled: boolean;
 
   /** Percent chance (0-100) that any given slide attempts a collage instead of the usual single/triple pick. */
-  @Column({ type: 'int', default: 20 })
+  @Column({ type: 'int', default: 10 })
   collageChance: number;
 
   /**
@@ -234,7 +234,7 @@ export class Settings {
    * handling the midnight-boundary case correctly (23:55 and 00:05 the
    * next day are close in time but different calendar days).
    */
-  @Column({ type: 'int', default: 180 })
+  @Column({ type: 'int', default: 1800 })
   collageTimeWindowMinutes: number;
 
   /**
