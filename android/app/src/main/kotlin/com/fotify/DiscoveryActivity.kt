@@ -167,7 +167,7 @@ class DiscoveryActivity : AppCompatActivity() {
             }
         }
 
-        lanScanner = LanScanner()
+        lanScanner = LanScanner(this)
         lifecycleScope.launch {
             lanScanner.scan { server ->
                 runOnUiThread { addServer(server) }
@@ -178,10 +178,15 @@ class DiscoveryActivity : AppCompatActivity() {
     private fun addServer(server: FotifyServer) {
         val alreadyKnown = servers.any { it.host == server.host && it.port == server.port }
         if (alreadyKnown) return
+        val wasEmpty = servers.isEmpty()
         servers.add(server)
         adapter.notifyDataSetChanged()
         binding.noServersHint.isVisible = false
         binding.serverList.isVisible = true
+        if (wasEmpty) {
+            binding.serverList.requestFocus()
+            binding.serverList.setSelection(0)
+        }
     }
 
     // ── Navigation ────────────────────────────────────────────────────────
@@ -237,6 +242,7 @@ class DiscoveryActivity : AppCompatActivity() {
             view.findViewById<TextView>(R.id.serverName).text = server.name
             view.findViewById<TextView>(R.id.serverAddress).text =
                 getString(R.string.server_address_format, server.host, server.port)
+            view.setOnClickListener { connectTo(server) }
             return view
         }
     }

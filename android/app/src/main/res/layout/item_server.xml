@@ -10,9 +10,7 @@
     android:paddingEnd="18dp"
     android:paddingTop="14dp"
     android:paddingBottom="14dp"
-    android:layout_marginBottom="8dp"
-    android:focusable="true"
-    android:clickable="true">
+    android:layout_marginBottom="8dp">
 
     <!-- mDNS service name, e.g. "Fotify@raspberrypi" -->
     <TextView

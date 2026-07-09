@@ -57,9 +57,14 @@ class UdpDiscoveryListener(context: Context) {
             }
             job = coroutineContext[Job]
             Log.d(TAG, "Listening for UDP discovery beacons on $DISCOVERY_PORT")
+            var lastQueryAt = 0L
 
             while (isActive) {
-                sendQuery()
+                val now = System.currentTimeMillis()
+                if (now - lastQueryAt >= 2_000) {
+                    sendQuery()
+                    lastQueryAt = now
+                }
                 try {
                     val packet = DatagramPacket(buffer, buffer.size)
                     socket?.receive(packet)
@@ -129,10 +134,25 @@ class UdpDiscoveryListener(context: Context) {
 
     private fun discoveryTargets(): Set<String> {
         val targets = linkedSetOf("255.255.255.255", MULTICAST_ADDRESS)
+        getWifiIpv4Address()?.let { localIp ->
+            targets.add(localIp.substringBeforeLast('.') + ".255")
+        }
         getLocalIpv4Address()?.let { localIp ->
             targets.add(localIp.substringBeforeLast('.') + ".255")
         }
         return targets
+    }
+
+    private fun getWifiIpv4Address(): String? {
+        @Suppress("DEPRECATION")
+        val raw = wifiManager?.connectionInfo?.ipAddress ?: return null
+        if (raw == 0) return null
+        return listOf(
+            raw and 0xff,
+            raw shr 8 and 0xff,
+            raw shr 16 and 0xff,
+            raw shr 24 and 0xff,
+        ).joinToString(".")
     }
 
     private fun getLocalIpv4Address(): String? {
