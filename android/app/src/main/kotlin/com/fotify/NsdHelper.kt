@@ -3,6 +3,7 @@ package com.fotify
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
+import android.net.wifi.WifiManager
 import android.util.Log
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
@@ -28,11 +29,17 @@ class NsdHelper(context: Context) {
 
     companion object {
         private const val TAG = "NsdHelper"
-        private const val SERVICE_TYPE = "_fotify._tcp"
+        // Android's older NSD implementations (including some FireOS versions)
+        // are stricter and expect the trailing dot.
+        private const val SERVICE_TYPE = "_fotify._tcp."
     }
 
+    private val appContext = context.applicationContext
     private val nsdManager = context.getSystemService(Context.NSD_SERVICE) as NsdManager
+    private val wifiManager =
+        appContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
     private var discoveryListener: NsdManager.DiscoveryListener? = null
+    private var multicastLock: WifiManager.MulticastLock? = null
 
     /** Queue of services waiting to be resolved (serial processing). */
     private val pendingResolves = ConcurrentLinkedQueue<NsdServiceInfo>()
@@ -50,11 +57,13 @@ class NsdHelper(context: Context) {
         if (discoveryListener != null) return          // already running
         discoveryListener = buildDiscoveryListener()
         try {
+            acquireMulticastLock()
             nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
             Log.d(TAG, "NSD discovery started for $SERVICE_TYPE")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start NSD discovery: ${e.message}")
             discoveryListener = null
+            releaseMulticastLock()
         }
     }
 
@@ -68,6 +77,7 @@ class NsdHelper(context: Context) {
         }
         discoveryListener = null
         pendingResolves.clear()
+        releaseMulticastLock()
     }
 
     // ── Private helpers ───────────────────────────────────────────────────
@@ -137,5 +147,23 @@ class NsdHelper(context: Context) {
                 drainResolveQueue()
             }
         })
+    }
+
+    private fun acquireMulticastLock() {
+        if (multicastLock?.isHeld == true) return
+        multicastLock = wifiManager?.createMulticastLock("fotify-mdns")?.apply {
+            setReferenceCounted(false)
+            acquire()
+        }
+        Log.d(TAG, "Multicast lock acquired: ${multicastLock?.isHeld == true}")
+    }
+
+    private fun releaseMulticastLock() {
+        try {
+            multicastLock?.takeIf { it.isHeld }?.release()
+        } catch (e: Exception) {
+            Log.w(TAG, "Error releasing multicast lock: ${e.message}")
+        }
+        multicastLock = null
     }
 }

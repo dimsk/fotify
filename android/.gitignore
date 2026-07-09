@@ -2,3 +2,7 @@ build/
 app/build
 .gradle
 fotify-client.apk
+/.idea/vcs.xml
+/.idea/misc.xml
+/.idea/gradle.xml
+/.idea/.gitignore

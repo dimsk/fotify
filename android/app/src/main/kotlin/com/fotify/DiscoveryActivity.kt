@@ -5,13 +5,19 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.widget.BaseAdapter
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.isVisible
+import androidx.lifecycle.lifecycleScope
 import com.fotify.databinding.ActivityDiscoveryBinding
+import kotlinx.coroutines.launch
 
 /**
  * Server discovery and selection screen.
@@ -26,11 +32,15 @@ class DiscoveryActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityDiscoveryBinding
     private lateinit var nsd: NsdHelper
+    private lateinit var lanScanner: LanScanner
+    private lateinit var udpDiscoveryListener: UdpDiscoveryListener
     private val servers = mutableListOf<FotifyServer>()
     private lateinit var adapter: ServerAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
 
         // Skip discovery if a server is already configured
         val prefs = Prefs.get(this)
@@ -42,9 +52,45 @@ class DiscoveryActivity : AppCompatActivity() {
         binding = ActivityDiscoveryBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        applyFullscreen()
+
         setupServerList()
         setupManualInput()
         startDiscovery()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::binding.isInitialized) applyFullscreen()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && ::binding.isInitialized) applyFullscreen()
+    }
+
+    private fun applyFullscreen() {
+        @Suppress("DEPRECATION")
+        window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+
+        @Suppress("DEPRECATION")
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_FULLSCREEN,
+            WindowManager.LayoutParams.FLAG_FULLSCREEN,
+        )
+
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
     }
 
     // ── Server list ───────────────────────────────────────────────────────
@@ -101,15 +147,7 @@ class DiscoveryActivity : AppCompatActivity() {
     private fun startDiscovery() {
         nsd = NsdHelper(this).apply {
             onServerFound = { server ->
-                runOnUiThread {
-                    val alreadyKnown = servers.any { it.host == server.host && it.port == server.port }
-                    if (!alreadyKnown) {
-                        servers.add(server)
-                        adapter.notifyDataSetChanged()
-                        binding.noServersHint.isVisible = false
-                        binding.serverList.isVisible = true
-                    }
-                }
+                runOnUiThread { addServer(server) }
             }
             onServerLost = { name ->
                 runOnUiThread {
@@ -121,6 +159,29 @@ class DiscoveryActivity : AppCompatActivity() {
             }
         }
         nsd.startDiscovery()
+
+        udpDiscoveryListener = UdpDiscoveryListener(this)
+        lifecycleScope.launch {
+            udpDiscoveryListener.listen { server ->
+                runOnUiThread { addServer(server) }
+            }
+        }
+
+        lanScanner = LanScanner()
+        lifecycleScope.launch {
+            lanScanner.scan { server ->
+                runOnUiThread { addServer(server) }
+            }
+        }
+    }
+
+    private fun addServer(server: FotifyServer) {
+        val alreadyKnown = servers.any { it.host == server.host && it.port == server.port }
+        if (alreadyKnown) return
+        servers.add(server)
+        adapter.notifyDataSetChanged()
+        binding.noServersHint.isVisible = false
+        binding.serverList.isVisible = true
     }
 
     // ── Navigation ────────────────────────────────────────────────────────
@@ -140,6 +201,8 @@ class DiscoveryActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         if (::nsd.isInitialized) nsd.stopDiscovery()
+        if (::udpDiscoveryListener.isInitialized) udpDiscoveryListener.stop()
+        if (::lanScanner.isInitialized) lanScanner.stop()
     }
 
     // ── URL parsing helpers ───────────────────────────────────────────────

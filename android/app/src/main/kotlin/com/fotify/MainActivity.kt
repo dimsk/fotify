@@ -65,8 +65,12 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Keep display on – no sleep/screen-saver during slideshow
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // Keep display on and hide status/navigation bars as early as possible.
+        // FireOS 6/7 is unreliable if fullscreen is applied only after setContentView().
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                WindowManager.LayoutParams.FLAG_FULLSCREEN,
+        )
 
         val prefs = Prefs.get(this)
         serverUrl = prefs.serverUrl ?: run {
@@ -90,6 +94,11 @@ class MainActivity : AppCompatActivity() {
         if (!isAtAdmin && !binding.connectionErrorOverlay.isVisible) startPolling()
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) applyFullscreen()
+    }
+
     override fun onPause() {
         super.onPause()
         stopPolling()
@@ -104,8 +113,23 @@ class MainActivity : AppCompatActivity() {
     // ── Fullscreen ────────────────────────────────────────────────────────
 
     private fun applyFullscreen() {
+        @Suppress("DEPRECATION")
+        window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+
+        @Suppress("DEPRECATION")
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_FULLSCREEN,
+            WindowManager.LayoutParams.FLAG_FULLSCREEN,
+        )
+
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowInsetsControllerCompat(window, binding.root).apply {
+        WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -116,6 +140,8 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
+        WebView.setWebContentsDebuggingEnabled(true)
+
         val wv = binding.webView
         wv.setBackgroundColor(Color.BLACK)
         wv.setLayerType(View.LAYER_TYPE_HARDWARE, null)
@@ -124,6 +150,8 @@ class MainActivity : AppCompatActivity() {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
+            loadsImagesAutomatically = true
+            javaScriptCanOpenWindowsAutomatically = false
             mediaPlaybackRequiresUserGesture = false
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             cacheMode = WebSettings.LOAD_DEFAULT
@@ -216,6 +244,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun buildWebChromeClient() = object : WebChromeClient() {
+        override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+            consoleMessage ?: return false
+            Log.d(
+                TAG,
+                "WebView console ${consoleMessage.messageLevel()}: " +
+                    "${consoleMessage.message()} (${consoleMessage.sourceId()}:${consoleMessage.lineNumber()})",
+            )
+            return true
+        }
+
+        override fun onProgressChanged(view: WebView?, newProgress: Int) {
+            Log.d(TAG, "WebView load progress: $newProgress")
+            super.onProgressChanged(view, newProgress)
+        }
+
         override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
             super.onShowCustomView(view, callback)
         }
