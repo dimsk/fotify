@@ -3,11 +3,13 @@ package com.fotify
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.widget.BaseAdapter
+import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -97,10 +99,42 @@ class DiscoveryActivity : AppCompatActivity() {
 
     private fun setupServerList() {
         adapter = ServerAdapter()
-        binding.serverList.adapter = adapter
-        binding.serverList.setOnItemClickListener { _, _, position, _ ->
-            connectTo(servers[position])
+        binding.serverList.apply {
+            adapter = this@DiscoveryActivity.adapter
+            choiceMode = ListView.CHOICE_MODE_SINGLE
+            isFocusable = true
+            isFocusableInTouchMode = false
+            itemsCanFocus = false
+
+            setOnItemClickListener { _, _, position, _ ->
+                connectToPosition(position)
+            }
+
+            setOnKeyListener { _, keyCode, event ->
+                if (event.action != KeyEvent.ACTION_UP) return@setOnKeyListener false
+                if (!isConfirmKey(keyCode)) return@setOnKeyListener false
+                connectSelectedServer()
+                true
+            }
         }
+    }
+
+    private fun isConfirmKey(keyCode: Int): Boolean = keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
+        keyCode == KeyEvent.KEYCODE_ENTER ||
+        keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER ||
+        keyCode == KeyEvent.KEYCODE_BUTTON_A
+
+    private fun connectSelectedServer() {
+        val position = binding.serverList.selectedItemPosition
+            .takeIf { it in servers.indices }
+            ?: 0.takeIf { servers.isNotEmpty() }
+            ?: return
+        connectToPosition(position)
+    }
+
+    private fun connectToPosition(position: Int) {
+        if (position !in servers.indices) return
+        connectTo(servers[position])
     }
 
     // ── Manual URL input ──────────────────────────────────────────────────
@@ -184,9 +218,20 @@ class DiscoveryActivity : AppCompatActivity() {
         binding.noServersHint.isVisible = false
         binding.serverList.isVisible = true
         if (wasEmpty) {
-            binding.serverList.requestFocus()
-            binding.serverList.setSelection(0)
+            binding.serverList.post {
+                binding.serverList.requestFocus()
+                binding.serverList.setSelection(0)
+                binding.serverList.setItemChecked(0, true)
+            }
         }
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (isConfirmKey(keyCode) && binding.serverList.hasFocus()) {
+            connectSelectedServer()
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
     }
 
     // ── Navigation ────────────────────────────────────────────────────────
