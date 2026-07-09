@@ -54,6 +54,10 @@ export class Settings {
   @Column({ type: 'boolean', default: true })
   clientPresenceDetectionEnabled: boolean;
 
+  /** Native browser-like zoom applied to the slideshow display. */
+  @Column({ type: 'real', default: 1 })
+  slideshowZoom: number;
+
   /**
    * The pool of effects the slideshow picks from. A single entry means
    * "always use this one effect"; multiple entries means "pick randomly

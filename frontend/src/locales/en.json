@@ -46,6 +46,8 @@
     "languageDescription": "Language used by the admin UI and slideshow overlays.",
     "clientPresenceDetection": "Client detection",
     "clientPresenceDetectionDescription": "Pause the shared slideshow timeline while no slideshow display is connected.",
+    "slideshowZoom": "Slideshow zoom",
+    "slideshowZoomDescription": "Browser-like zoom level for the slideshow display. 1.0 means 100%.",
     "timeZone": "Time zone",
     "timeZoneDescription": "Used for night mode and calendar overlay schedules.",
     "transitionEffects": "Transition effects",

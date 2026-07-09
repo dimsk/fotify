@@ -42,9 +42,6 @@ const CAPTION_POSITION_CLASS: Record<PhotoCaptionPosition, string> = {
 // random picks — refetched occasionally so admin changes are picked up
 // without requiring a manual reload of the kiosk display.
 const DISPLAY_SETTINGS_REFRESH_MS = 60_000;
-// Makes the slideshow render as if the browser were zoomed to 90%, matching
-// the look requested for the kiosk display, without a CSS-transform hack.
-const SLIDESHOW_VIEWPORT_SCALE = 1.0;
 const TIMED_OVERLAY_CHANCE = 0.35;
 const TIMED_OVERLAY_MAX_VISIBLE_MS = 9000;
 const TIMED_OVERLAY_MIN_VISIBLE_MS = 3500;
@@ -67,6 +64,7 @@ export function SlideshowPage() {
   const layerBRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const [hasPhotos, setHasPhotos] = useState<boolean | null>(null);
+  const [slideshowZoom, setSlideshowZoom] = useState(1);
   const [frameStyle, setFrameStyle] = useState<PhotoFrameStyle>('none');
   const [captionPosition, setCaptionPosition] =
     useState<PhotoCaptionPosition>('bottom-right');
@@ -93,6 +91,7 @@ export function SlideshowPage() {
         .get()
         .then((settings) => {
           if (!cancelled) {
+            setSlideshowZoom(settings.slideshowZoom);
             setFrameStyle(settings.photoFrameStyle);
             setCaptionPosition(settings.photoCaptionPosition);
             setGrainEffect(settings.grainEffect);
@@ -149,7 +148,7 @@ export function SlideshowPage() {
   useSlideshowEngine(layerARef, layerBRef, overlayRef);
   useAutoFullscreen();
   useFixedViewportWidth();
-  useViewportScale(SLIDESHOW_VIEWPORT_SCALE);
+  useViewportScale(slideshowZoom);
 
   if (hasPhotos === false) {
     return (

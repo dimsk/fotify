@@ -116,6 +116,7 @@ export interface Settings {
   id: number;
   language: Language;
   clientPresenceDetectionEnabled: boolean;
+  slideshowZoom: number;
   transitionEffects: TransitionEffect[];
   transitionDurationMs: number;
   cinematicChance: number;
@@ -155,6 +156,7 @@ export interface Settings {
 export interface UpdateSettingsInput {
   language?: Language;
   clientPresenceDetectionEnabled?: boolean;
+  slideshowZoom?: number;
   transitionEffects?: TransitionEffect[];
   transitionDurationMs?: number;
   cinematicChance?: number;

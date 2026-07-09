@@ -3,6 +3,7 @@ import {
   Button,
   Card,
   Group,
+  NumberInput,
   Select,
   Stack,
   Switch,
@@ -70,6 +71,7 @@ export function GeneralPage() {
   const [language, setLanguage] = useState<Language>('en');
   const [clientPresenceDetectionEnabled, setClientPresenceDetectionEnabled] =
     useState(true);
+  const [slideshowZoom, setSlideshowZoom] = useState(1);
   const [scheduleTimezone, setScheduleTimezone] = useState(getBrowserTimeZone);
   const [nightModeEnabled, setNightModeEnabled] = useState(false);
   const [nightModeStart, setNightModeStart] = useState('22:00');
@@ -80,6 +82,7 @@ export function GeneralPage() {
     if (!settings) return;
     setLanguage(settings.language);
     setClientPresenceDetectionEnabled(settings.clientPresenceDetectionEnabled);
+    setSlideshowZoom(settings.slideshowZoom);
     setScheduleTimezone(settings.scheduleTimezone ?? getBrowserTimeZone());
     setNightModeEnabled(settings.nightModeEnabled);
     setNightModeStart(settings.nightModeStart);
@@ -99,6 +102,7 @@ export function GeneralPage() {
     updateMutation.mutate({
       language,
       clientPresenceDetectionEnabled,
+      slideshowZoom,
       scheduleTimezone,
       nightModeEnabled,
       nightModeStart,
@@ -133,6 +137,16 @@ export function GeneralPage() {
           onChange={(e) =>
             setClientPresenceDetectionEnabled(e.currentTarget.checked)
           }
+        />
+        <NumberInput
+          label={t('settings.slideshowZoom')}
+          description={t('settings.slideshowZoomDescription')}
+          value={slideshowZoom}
+          min={0.5}
+          max={2}
+          step={0.05}
+          decimalScale={2}
+          onChange={(v) => setSlideshowZoom(Number(v) || 1)}
         />
       </Section>
 

@@ -46,6 +46,8 @@
     "languageDescription": "Sprache für Admin-Oberfläche und Diashow-Overlays.",
     "clientPresenceDetection": "Client-Erkennung",
     "clientPresenceDetectionDescription": "Pausiert die gemeinsame Diashow-Zeitleiste, solange kein Diashow-Display verbunden ist.",
+    "slideshowZoom": "Diashow-Zoom",
+    "slideshowZoomDescription": "Browser-ähnlicher Zoomfaktor für die Diashow-Anzeige. 1.0 bedeutet 100%.",
     "timeZone": "Zeitzone",
     "timeZoneDescription": "Wird für Nachtruhe und Kalender-Overlay-Zeitpläne verwendet.",
     "transitionEffects": "Übergangseffekte",

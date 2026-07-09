@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   Matches,
@@ -73,6 +74,12 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsBoolean()
   clientPresenceDetectionEnabled?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.5)
+  @Max(2)
+  slideshowZoom?: number;
 
   @IsOptional()
   @IsArray()

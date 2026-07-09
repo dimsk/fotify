@@ -5,6 +5,7 @@ export class ClientPresenceSetting1783431000000 implements MigrationInterface {
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`ALTER TABLE "settings" ADD "clientPresenceDetectionEnabled" boolean NOT NULL DEFAULT (1)`);
+    await queryRunner.query(`ALTER TABLE "settings" ADD "slideshowZoom" real NOT NULL DEFAULT (1)`);
     await queryRunner.query(`ALTER TABLE "settings" ADD "scheduleTimezone" text NOT NULL DEFAULT ('Europe/Berlin')`);
   }
 
