@@ -44,7 +44,7 @@ const CAPTION_POSITION_CLASS: Record<PhotoCaptionPosition, string> = {
 const DISPLAY_SETTINGS_REFRESH_MS = 60_000;
 // Makes the slideshow render as if the browser were zoomed to 90%, matching
 // the look requested for the kiosk display, without a CSS-transform hack.
-const SLIDESHOW_VIEWPORT_SCALE = 0.9;
+const SLIDESHOW_VIEWPORT_SCALE = 1.0;
 const TIMED_OVERLAY_CHANCE = 0.35;
 const TIMED_OVERLAY_MAX_VISIBLE_MS = 9000;
 const TIMED_OVERLAY_MIN_VISIBLE_MS = 3500;
