@@ -49,22 +49,17 @@ export class MdnsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private startUdpBeacon(hostname: string, frontendPort: number) {
-    const payload = Buffer.from(
-      JSON.stringify({
-        type: 'fotify-discovery',
-        version: 1,
-        name: `Fotify@${hostname}`,
-        frontendPort,
-        path: '/',
-      }),
-    );
+    const payload = this.discoveryPayload(hostname, frontendPort);
 
     try {
-      this.udpSocket = dgram.createSocket('udp4');
+      this.udpSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
       this.udpSocket.on('error', (err) => {
         this.logger.warn(`UDP discovery beacon error: ${err.message}`);
       });
-      this.udpSocket.bind(() => {
+      this.udpSocket.on('message', (message, rinfo) => {
+        this.handleDiscoveryMessage(message, rinfo, payload);
+      });
+      this.udpSocket.bind(this.discoveryPort, '0.0.0.0', () => {
         this.udpSocket?.setBroadcast(true);
         this.udpSocket?.setMulticastTTL(1);
 
@@ -77,12 +72,43 @@ export class MdnsService implements OnModuleInit, OnModuleDestroy {
         sendBeacon();
         this.udpInterval = setInterval(sendBeacon, 3000);
         this.logger.log(
-          `UDP discovery: broadcasting Fotify on port ${frontendPort} to UDP ${this.discoveryPort}`,
+          `UDP discovery: listening and broadcasting Fotify on port ${frontendPort} via UDP ${this.discoveryPort}`,
         );
       });
     } catch (err: any) {
       this.logger.warn(`UDP discovery beacon not available: ${err.message}`);
     }
+  }
+
+  private discoveryPayload(hostname: string, frontendPort: number) {
+    return Buffer.from(
+      JSON.stringify({
+        type: 'fotify-discovery',
+        version: 1,
+        name: `Fotify@${hostname}`,
+        frontendPort,
+        path: '/',
+      }),
+    );
+  }
+
+  private handleDiscoveryMessage(
+    message: Buffer,
+    rinfo: dgram.RemoteInfo,
+    payload: Buffer,
+  ) {
+    const text = message.toString('utf8').trim();
+    if (text !== 'fotify-discovery-query') return;
+
+    this.udpSocket?.send(payload, rinfo.port, rinfo.address, (err) => {
+      if (err) {
+        this.logger.warn(
+          `UDP discovery: failed replying to ${rinfo.address}:${rinfo.port}: ${err.message}`,
+        );
+      } else {
+        this.logger.debug(`UDP discovery: replied to ${rinfo.address}:${rinfo.port}`);
+      }
+    });
   }
 
   private getUdpTargets() {
