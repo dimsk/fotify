@@ -148,7 +148,7 @@ export class CalendarService {
   async getToday(): Promise<CalendarTodayResponse> {
     const settings = await this.settingsRepo.findOneBy({ id: SETTINGS_ID });
     if (!settings?.calendarOverlayEnabled) return { visible: false, events: [] };
-    if (!isWithinTimeWindow(new Date(), settings.calendarOverlayStart, settings.calendarOverlayEnd)) {
+    if (!isWithinTimeWindow(new Date(), settings.calendarOverlayStart, settings.calendarOverlayEnd, settings.scheduleTimezone)) {
       return { visible: false, events: [] };
     }
 

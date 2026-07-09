@@ -115,6 +115,7 @@ export type CollageLayoutSelection = CollageLayoutType | 'random';
 export interface Settings {
   id: number;
   language: Language;
+  clientPresenceDetectionEnabled: boolean;
   transitionEffects: TransitionEffect[];
   transitionDurationMs: number;
   cinematicChance: number;
@@ -128,6 +129,7 @@ export interface Settings {
   nightModeEnabled: boolean;
   nightModeStart: string;
   nightModeEnd: string;
+  scheduleTimezone: string;
   calendarOverlayEnabled: boolean;
   calendarOverlayStart: string;
   calendarOverlayEnd: string;
@@ -152,6 +154,7 @@ export interface Settings {
 
 export interface UpdateSettingsInput {
   language?: Language;
+  clientPresenceDetectionEnabled?: boolean;
   transitionEffects?: TransitionEffect[];
   transitionDurationMs?: number;
   cinematicChance?: number;
@@ -165,6 +168,7 @@ export interface UpdateSettingsInput {
   nightModeEnabled?: boolean;
   nightModeStart?: string;
   nightModeEnd?: string;
+  scheduleTimezone?: string;
   calendarOverlayEnabled?: boolean;
   calendarOverlayStart?: string;
   calendarOverlayEnd?: string;

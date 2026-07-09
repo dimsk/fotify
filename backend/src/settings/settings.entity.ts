@@ -50,6 +50,10 @@ export class Settings {
   @Column({ type: 'text', default: 'en' })
   language: Language;
 
+  /** If true, the shared slideshow timeline pauses when no client is connected. */
+  @Column({ type: 'boolean', default: true })
+  clientPresenceDetectionEnabled: boolean;
+
   /**
    * The pool of effects the slideshow picks from. A single entry means
    * "always use this one effect"; multiple entries means "pick randomly
@@ -133,6 +137,10 @@ export class Settings {
 
   @Column({ type: 'text', default: '07:00' })
   nightModeEnd: string;
+
+  /** Timezone used for slideshow schedules such as night mode and calendar overlay windows. */
+  @Column({ type: 'text', default: 'Europe/Berlin' })
+  scheduleTimezone: string;
 
   /**
    * If true, a "today's events" card is overlaid on the slideshow while the

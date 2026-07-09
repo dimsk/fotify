@@ -61,6 +61,31 @@ const COLLAGE_LAYOUT_VALUES: CollageLayoutSelection[] = [
   'random',
 ];
 
+const FALLBACK_TIMEZONES = [
+  'Europe/Berlin',
+  'Europe/London',
+  'Europe/Paris',
+  'UTC',
+  'America/New_York',
+  'America/Los_Angeles',
+  'Asia/Tokyo',
+  'Australia/Sydney',
+];
+
+function getBrowserTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+}
+
+function getTimeZoneOptions(current: string) {
+  const supported =
+    typeof Intl.supportedValuesOf === 'function'
+      ? Intl.supportedValuesOf('timeZone')
+      : FALLBACK_TIMEZONES;
+  return Array.from(new Set([current, ...supported]))
+    .filter(Boolean)
+    .map((value) => ({ value, label: value.replaceAll('_', ' ') }));
+}
+
 interface SectionProps {
   icon: React.ReactNode;
   title: string;
@@ -88,6 +113,8 @@ export function SettingsPage() {
   });
 
   const [language, setLanguage] = useState<Language>('en');
+  const [clientPresenceDetectionEnabled, setClientPresenceDetectionEnabled] =
+    useState(true);
   const [effects, setEffects] = useState<TransitionEffect[]>(['fade']);
   const [imageSeconds, setImageSeconds] = useState(6);
   const [transitionMs, setTransitionMs] = useState(1200);
@@ -103,6 +130,7 @@ export function SettingsPage() {
   const [nightModeEnabled, setNightModeEnabled] = useState(false);
   const [nightModeStart, setNightModeStart] = useState('22:00');
   const [nightModeEnd, setNightModeEnd] = useState('07:00');
+  const [timeZone, setTimeZone] = useState(getBrowserTimeZone);
   const [autoRescanEnabled, setAutoRescanEnabled] = useState(false);
   const [collageEnabled, setCollageEnabled] = useState(false);
   const [collageChance, setCollageChance] = useState(20);
@@ -114,6 +142,7 @@ export function SettingsPage() {
   useEffect(() => {
     if (!settings) return;
     setLanguage(settings.language);
+    setClientPresenceDetectionEnabled(settings.clientPresenceDetectionEnabled);
     setEffects(settings.transitionEffects);
     setImageSeconds(Math.round(settings.imageDurationMs / 1000));
     setTransitionMs(settings.transitionDurationMs);
@@ -127,6 +156,7 @@ export function SettingsPage() {
     setNightModeEnabled(settings.nightModeEnabled);
     setNightModeStart(settings.nightModeStart);
     setNightModeEnd(settings.nightModeEnd);
+    setTimeZone(settings.scheduleTimezone ?? getBrowserTimeZone());
     setAutoRescanEnabled(settings.autoRescanEnabled);
     setCollageEnabled(settings.collageEnabled);
     setCollageChance(settings.collageChance);
@@ -193,6 +223,7 @@ export function SettingsPage() {
   function save() {
     updateMutation.mutate({
       language,
+      clientPresenceDetectionEnabled,
       transitionEffects: effects,
       imageDurationMs: imageSeconds * 1000,
       transitionDurationMs: transitionMs,
@@ -206,6 +237,7 @@ export function SettingsPage() {
       nightModeEnabled,
       nightModeStart,
       nightModeEnd,
+      scheduleTimezone: timeZone,
       autoRescanEnabled,
       collageEnabled,
       collageChance,
@@ -218,6 +250,7 @@ export function SettingsPage() {
     { value: 'en', label: t('common.english') },
     { value: 'de', label: t('common.german') },
   ];
+  const timeZoneOptions = getTimeZoneOptions(timeZone);
   const effectOptions = EFFECT_VALUES.map((value) => ({ value, label: t(`options.effects.${value}`) }));
   const shuffleModeOptions: { value: ShuffleMode; label: string }[] = [
     { value: 'all', label: t('options.shuffle.all') },
@@ -255,6 +288,14 @@ export function SettingsPage() {
             value={language}
             onChange={(v) => v && setLanguage(v as Language)}
             allowDeselect={false}
+          />
+          <Switch
+            label={t('settings.clientPresenceDetection')}
+            description={t('settings.clientPresenceDetectionDescription')}
+            checked={clientPresenceDetectionEnabled}
+            onChange={(e) =>
+              setClientPresenceDetectionEnabled(e.currentTarget.checked)
+            }
           />
         </Section>
 
@@ -354,6 +395,16 @@ export function SettingsPage() {
         </Section>
 
         <Section icon={<CalendarClock size={18} />} title={t('settings.schedule')}>
+          <Select
+            label={t('settings.timeZone')}
+            description={t('settings.timeZoneDescription')}
+            data={timeZoneOptions}
+            value={timeZone}
+            onChange={(v) => v && setTimeZone(v)}
+            searchable
+            allowDeselect={false}
+          />
+
           <Switch
             label={t('settings.nightMode')}
             description={t('settings.nightModeDescription')}

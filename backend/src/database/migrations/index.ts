@@ -24,6 +24,7 @@ import { PhotoCaptionPosition1783427000000 } from './1783427000000-PhotoCaptionP
 import { WeatherSettings1783428000000 } from './1783428000000-WeatherSettings';
 import { PhotoAction1783429000000 } from './1783429000000-PhotoAction';
 import { LanguageSetting1783430000000 } from './1783430000000-LanguageSetting';
+import { ClientPresenceSetting1783431000000 } from './1783431000000-ClientPresenceSetting';
 
 export const migrations = [
   InitialSchema1783265469029,
@@ -52,4 +53,5 @@ export const migrations = [
   WeatherSettings1783428000000,
   PhotoAction1783429000000,
   LanguageSetting1783430000000,
+  ClientPresenceSetting1783431000000,
 ];

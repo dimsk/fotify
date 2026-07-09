@@ -5,6 +5,7 @@ import {
   IsIn,
   IsInt,
   IsOptional,
+  IsString,
   Matches,
   Max,
   Min,
@@ -70,6 +71,10 @@ export class UpdateSettingsDto {
   language?: Language;
 
   @IsOptional()
+  @IsBoolean()
+  clientPresenceDetectionEnabled?: boolean;
+
+  @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
   @IsIn(EFFECTS, { each: true })
@@ -126,6 +131,10 @@ export class UpdateSettingsDto {
   @IsOptional()
   @Matches(TIME_HHMM)
   nightModeEnd?: string;
+
+  @IsOptional()
+  @IsString()
+  scheduleTimezone?: string;
 
   @IsOptional()
   @IsBoolean()

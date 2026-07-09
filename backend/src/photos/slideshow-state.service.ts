@@ -83,6 +83,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
   private pausedRemainingMs: number | null = null;
   private readonly clientExpirations = new Map<string, number>();
   private advancing = false;
+  private clientPresenceDetectionEnabled = true;
 
   constructor(
     @InjectRepository(Photo) private readonly photoRepo: Repository<Photo>,
@@ -101,13 +102,18 @@ export class SlideshowStateService implements OnApplicationBootstrap {
       this.handlePhotosDeleted(deletedIds),
     );
     await this.restoreQueueFromDb();
+    await this.refreshClientPresenceDetection();
+    if (!this.clientPresenceDetectionEnabled) {
+      await this.resumeSlideshow();
+    }
   }
 
   async recordClientHeartbeat(clientId: string): Promise<void> {
+    await this.refreshClientPresenceDetection();
     const hadActiveClients = this.hasActiveClients();
     this.clientExpirations.set(clientId, Date.now() + CLIENT_HEARTBEAT_TIMEOUT_MS);
     this.schedulePresenceCheck();
-    if (!hadActiveClients) {
+    if (!hadActiveClients || (!this.current && this.tickTimer === null)) {
       await this.resumeSlideshow();
     }
   }
@@ -295,6 +301,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
   }
 
   private hasActiveClients(): boolean {
+    if (!this.clientPresenceDetectionEnabled) return true;
     const now = Date.now();
     for (const [clientId, expiresAt] of this.clientExpirations) {
       if (expiresAt <= now) this.clientExpirations.delete(clientId);
@@ -377,6 +384,8 @@ export class SlideshowStateService implements OnApplicationBootstrap {
     try {
       this.pausedRemainingMs = null;
       const settings = await this.settingsRepo.findOneBy({ id: 1 });
+      this.clientPresenceDetectionEnabled =
+        settings?.clientPresenceDetectionEnabled ?? true;
       const asleep = this.isNightModeActive(settings);
 
       // During night mode the lookahead buffer is deliberately left alone —
@@ -462,7 +471,14 @@ export class SlideshowStateService implements OnApplicationBootstrap {
       new Date(),
       settings.nightModeStart,
       settings.nightModeEnd,
+      settings.scheduleTimezone,
     );
+  }
+
+  private async refreshClientPresenceDetection(): Promise<void> {
+    const settings = await this.settingsRepo.findOneBy({ id: 1 });
+    this.clientPresenceDetectionEnabled =
+      settings?.clientPresenceDetectionEnabled ?? true;
   }
 
   private async fillUpcoming(): Promise<void> {
