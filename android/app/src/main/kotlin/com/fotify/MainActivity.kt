@@ -145,6 +145,10 @@ class MainActivity : AppCompatActivity() {
         val wv = binding.webView
         wv.setBackgroundColor(Color.BLACK)
         wv.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        wv.isVerticalScrollBarEnabled = false
+        wv.isHorizontalScrollBarEnabled = false
+        wv.isScrollbarFadingEnabled = true
+        wv.overScrollMode = View.OVER_SCROLL_NEVER
 
         wv.settings.apply {
             javaScriptEnabled = true
@@ -162,8 +166,35 @@ class MainActivity : AppCompatActivity() {
             displayZoomControls = false
         }
 
+        wv.addJavascriptInterface(DisplayBridge(), "FotifyDisplay")
         wv.webViewClient = buildWebViewClient()
         wv.webChromeClient = buildWebChromeClient()
+    }
+
+    /** Exposes the native display resolution to the remote Fotify frontend. */
+    inner class DisplayBridge {
+        @JavascriptInterface
+        fun getWidth(): Int = displaySize().first
+
+        @JavascriptInterface
+        fun getHeight(): Int = displaySize().second
+
+        @JavascriptInterface
+        fun getDensity(): Float = resources.displayMetrics.density
+    }
+
+    private fun displaySize(): Pair<Int, Int> {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bounds = windowManager.currentWindowMetrics.bounds
+            bounds.width() to bounds.height()
+        } else {
+            @Suppress("DEPRECATION")
+            val display = windowManager.defaultDisplay
+            val metrics = android.util.DisplayMetrics()
+            @Suppress("DEPRECATION")
+            display.getRealMetrics(metrics)
+            metrics.widthPixels to metrics.heightPixels
+        }
     }
 
     private fun buildWebViewClient() = object : WebViewClient() {
