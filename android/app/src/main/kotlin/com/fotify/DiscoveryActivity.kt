@@ -21,6 +21,8 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import com.fotify.databinding.ActivityDiscoveryBinding
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Server discovery and selection screen.
@@ -32,6 +34,11 @@ import kotlinx.coroutines.launch
  * [MainActivity] is launched.
  */
 class DiscoveryActivity : AppCompatActivity() {
+
+    companion object {
+        private const val DISCOVERY_CACHE_PREFS = "fotify_discovery_cache"
+        private const val KEY_CACHED_SERVERS = "cached_servers"
+    }
 
     private lateinit var binding: ActivityDiscoveryBinding
     private lateinit var nsd: NsdHelper
@@ -60,6 +67,7 @@ class DiscoveryActivity : AppCompatActivity() {
 
         setupServerList()
         setupManualInput()
+        restoreCachedServers()
         startDiscovery()
     }
 
@@ -204,10 +212,12 @@ class DiscoveryActivity : AppCompatActivity() {
             }
             onServerLost = { name ->
                 runOnUiThread {
-                    servers.removeAll { it.name == name }
-                    adapter.notifyDataSetChanged()
-                    binding.noServersHint.isVisible = servers.isEmpty()
-                    binding.serverList.isVisible = servers.isNotEmpty()
+                    // Keep already discovered servers selectable. NSD can emit
+                    // onServiceLost while discovery is stopped/backgrounded,
+                    // which otherwise makes the list disappear on resume.
+                    if (discoveryRunning) {
+                        updateScanStatus("mDNS lost: $name")
+                    }
                 }
             }
         }
@@ -221,11 +231,13 @@ class DiscoveryActivity : AppCompatActivity() {
         }
 
         lanScanner = LanScanner(this)
-        lifecycleScope.launch {
+        if (servers.isEmpty()) {
             lanScanner.scan(
                 onStatus = { status -> runOnUiThread { updateScanStatus(status) } },
                 onServerFound = { server -> runOnUiThread { addServer(server) } },
             )
+        } else {
+            updateScanStatus("known servers loaded · mDNS/UDP active")
         }
     }
 
@@ -239,9 +251,14 @@ class DiscoveryActivity : AppCompatActivity() {
         if (alreadyKnown) return
         val wasEmpty = servers.isEmpty()
         servers.add(server)
+        cacheServers()
         adapter.notifyDataSetChanged()
         binding.noServersHint.isVisible = false
         binding.serverList.isVisible = true
+        // Once a server is known, stop the expensive full 192.168.*.* HTTP scan.
+        // mDNS/UDP stay active while this screen is visible.
+        if (::lanScanner.isInitialized) lanScanner.stop()
+        updateScanStatus("found via ${server.method}: ${server.host}:${server.port}")
         if (wasEmpty) {
             binding.serverList.post {
                 binding.serverList.requestFocus()
@@ -251,13 +268,20 @@ class DiscoveryActivity : AppCompatActivity() {
         }
     }
 
-    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             if (binding.manualUrl.hasFocus()) {
                 hideKeyboardAndLeaveManualInput()
-                return true
+            } else {
+                finishAndRemoveTask()
             }
-            finishAndRemoveTask()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
             return true
         }
         if (isConfirmKey(keyCode) && binding.serverList.hasFocus()) {
@@ -307,6 +331,48 @@ class DiscoveryActivity : AppCompatActivity() {
         if (::binding.isInitialized) {
             binding.scanStatusLabel.text = "discovery stopped"
         }
+    }
+
+    private fun restoreCachedServers() {
+        val raw = getSharedPreferences(DISCOVERY_CACHE_PREFS, MODE_PRIVATE)
+            .getString(KEY_CACHED_SERVERS, null)
+            ?: return
+        try {
+            val arr = JSONArray(raw)
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                addServer(
+                    FotifyServer(
+                        name = obj.optString("name"),
+                        host = obj.optString("host"),
+                        port = obj.optInt("port", 15766),
+                        method = obj.optString("method", "Cached"),
+                    )
+                )
+            }
+        } catch (_: Exception) {
+            getSharedPreferences(DISCOVERY_CACHE_PREFS, MODE_PRIVATE)
+                .edit()
+                .remove(KEY_CACHED_SERVERS)
+                .apply()
+        }
+    }
+
+    private fun cacheServers() {
+        val arr = JSONArray()
+        servers.forEach { server ->
+            arr.put(
+                JSONObject()
+                    .put("name", server.name)
+                    .put("host", server.host)
+                    .put("port", server.port)
+                    .put("method", server.method)
+            )
+        }
+        getSharedPreferences(DISCOVERY_CACHE_PREFS, MODE_PRIVATE)
+            .edit()
+            .putString(KEY_CACHED_SERVERS, arr.toString())
+            .apply()
     }
 
     // ── URL parsing helpers ───────────────────────────────────────────────

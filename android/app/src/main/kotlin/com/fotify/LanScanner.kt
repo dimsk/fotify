@@ -3,20 +3,22 @@ package com.fotify
 import android.content.Context
 import android.net.wifi.WifiManager
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.NetworkInterface
 import java.net.URL
 import java.util.concurrent.Semaphore
-import kotlin.coroutines.coroutineContext
 
 /**
  * HTTP fallback discovery for devices where mDNS is unreliable or blocked.
@@ -29,7 +31,10 @@ class LanScanner(context: Context) {
 
     companion object {
         private const val TAG = "LanScanner"
-        private const val TIMEOUT_MS = 450
+        private const val TIMEOUT_MS = 250
+        private const val MAX_PARALLEL_REQUESTS = 24
+        private const val REQUESTS_PER_BATCH = 48
+        private const val RANGE_PAUSE_MS = 20L
 
         // 15766 = default, 15776 = currently reported custom setup, 8080 = old nginx default.
         private val PORTS = intArrayOf(15766, 15776, 8080)
@@ -55,22 +60,31 @@ class LanScanner(context: Context) {
         appContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
     private var scanJob: Job? = null
 
-    suspend fun scan(
+    fun scan(
         onStatus: (String) -> Unit,
         onServerFound: (FotifyServer) -> Unit,
-    ) = withContext(Dispatchers.IO) {
+    ) {
+        stop()
+        scanJob = CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            scanInternal(onStatus, onServerFound)
+        }
+    }
+
+    private suspend fun scanInternal(
+        onStatus: (String) -> Unit,
+        onServerFound: (FotifyServer) -> Unit,
+    ) {
         val prefixes = getCandidatePrefixes()
         if (prefixes.isEmpty()) {
             Log.w(TAG, "No local IPv4 subnet found; LAN scan skipped")
             onStatus("HTTP scan skipped: no local IPv4")
-            return@withContext
+            return
         }
         Log.d(TAG, "LAN scan started on ${prefixes.joinToString { "$it.0/24" }}")
         onStatus("HTTP scan: ${prefixes.size} ranges")
 
         coroutineScope {
-            scanJob = coroutineContext[Job]
-            val semaphore = Semaphore(96)
+            val semaphore = Semaphore(MAX_PARALLEL_REQUESTS)
 
             // Do not spawn thousands of coroutines at once; older FireTV devices
             // and emulators can become unresponsive. Chunking keeps discovery fast
@@ -81,7 +95,7 @@ class LanScanner(context: Context) {
                 val candidates = (1..254).flatMap { hostPart ->
                     PORTS.map { port -> "$prefix.$hostPart" to port }
                 }
-                for (chunk in candidates.chunked(192)) {
+                for (chunk in candidates.chunked(REQUESTS_PER_BATCH)) {
                     if (!isActive) break
                     chunk.map { (host, port) ->
                         async {
@@ -103,10 +117,11 @@ class LanScanner(context: Context) {
                         }
                     }.awaitAll()
                 }
+                delay(RANGE_PAUSE_MS)
             }
         }
         Log.d(TAG, "LAN scan finished")
-        onStatus("HTTP scan finished")
+        if (scanJob?.isActive == true) onStatus("HTTP scan finished")
     }
 
     fun stop() {
