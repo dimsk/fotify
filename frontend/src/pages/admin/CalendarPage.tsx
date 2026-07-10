@@ -75,7 +75,15 @@ export function CalendarPage() {
 
   const resyncMutation = useMutation({
     mutationFn: (id: number) => api.calendar.resync(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['calendar', 'accounts'] }),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['calendar', 'accounts'] });
+      queryClient.setQueryData<CalendarAccount[]>(['calendar', 'accounts'], (current) =>
+        current?.map((account) =>
+          account.id === id ? { ...account, status: 'syncing', lastSyncError: null } : account,
+        ),
+      );
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['calendar'] }),
   });
 
   const deleteMutation = useMutation({
@@ -121,6 +129,7 @@ export function CalendarPage() {
                 <CalendarAccountRow
                   key={account.id}
                   account={account}
+                  resyncing={resyncMutation.isPending && resyncMutation.variables === account.id}
                   onResync={(id) => resyncMutation.mutate(id)}
                   onDelete={setPendingDelete}
                 />

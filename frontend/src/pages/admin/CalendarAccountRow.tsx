@@ -11,12 +11,14 @@ const STATUS_COLOR: Record<CalendarAccount['status'], string> = {
 
 interface CalendarAccountRowProps {
   account: CalendarAccount;
+  resyncing: boolean;
   onResync: (id: number) => void;
   onDelete: (account: CalendarAccount) => void;
 }
 
-export function CalendarAccountRow({ account, onResync, onDelete }: CalendarAccountRowProps) {
+export function CalendarAccountRow({ account, resyncing, onResync, onDelete }: CalendarAccountRowProps) {
   const { t, i18n } = useTranslation();
+  const syncDisabled = resyncing || account.status === 'syncing';
   return (
     <Table.Tr>
       <Table.Td>{account.label}</Table.Td>
@@ -40,7 +42,7 @@ export function CalendarAccountRow({ account, onResync, onDelete }: CalendarAcco
       <Table.Td>
         <Group gap="xs">
           <Tooltip label={t('calendar.resync')}>
-            <ActionIcon variant="subtle" onClick={() => onResync(account.id)} disabled={account.status === 'syncing'}>
+            <ActionIcon variant="subtle" onClick={() => onResync(account.id)} disabled={syncDisabled} loading={syncDisabled}>
               <RefreshCw size={16} />
             </ActionIcon>
           </Tooltip>

@@ -82,6 +82,8 @@ export class CalendarService {
   async resyncAccount(id: number): Promise<void> {
     const account = await this.accountRepo.findOneBy({ id });
     if (!account) throw new NotFoundException('Calendar account not found');
+    if (account.status === 'syncing') return;
+    await this.accountRepo.update(id, { status: 'syncing', lastSyncError: null });
     this.calendarSync.triggerSync(id);
   }
 
