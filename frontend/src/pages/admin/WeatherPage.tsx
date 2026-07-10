@@ -34,6 +34,7 @@ export function WeatherPage() {
   const [enabled, setEnabled] = useState(false);
   const [mode, setMode] = useState<WeatherOverlayMode>('always');
   const [forecastDays, setForecastDays] = useState(4);
+  const [refreshIntervalMinutes, setRefreshIntervalMinutes] = useState(15);
   const [search, setSearch] = useState('');
   const [debouncedSearch] = useDebouncedValue(search, 250);
   const [selectedLocation, setSelectedLocation] =
@@ -53,6 +54,7 @@ export function WeatherPage() {
     setEnabled(settings.enabled);
     setMode(settings.mode);
     setForecastDays(settings.forecastDays);
+    setRefreshIntervalMinutes(settings.refreshIntervalMinutes);
     setSelectedLocation(settings.location);
     setSelectedLocationValue(
       settings.location ? String(settings.location.id) : null,
@@ -158,6 +160,16 @@ export function WeatherPage() {
             disabled={!enabled}
           />
 
+          <NumberInput
+            label={t('weather.refreshInterval')}
+            description={t('weather.refreshIntervalDescription')}
+            min={1}
+            max={1440}
+            value={refreshIntervalMinutes}
+            onChange={(value) => setRefreshIntervalMinutes(Math.max(1, Number(value) || 1))}
+            disabled={!enabled}
+          />
+
           <Text size="xs" c="dimmed">
             {t('weather.attribution')}
           </Text>
@@ -170,6 +182,7 @@ export function WeatherPage() {
             enabled,
             mode,
             forecastDays,
+            refreshIntervalMinutes,
             locationId: selectedLocation?.id,
           })
         }

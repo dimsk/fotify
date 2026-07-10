@@ -43,6 +43,7 @@ export const DEFAULT_SETTINGS: Partial<Settings> = {
   weatherOverlayEnabled: true,
   weatherOverlayMode: 'always',
   weatherForecastDays: 4,
+  weatherRefreshIntervalMinutes: 15,
   autoRescanEnabled: false,
   collageEnabled: true,
   collageChance: 10,

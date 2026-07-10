@@ -21,12 +21,13 @@ import type {
 } from '../api/types';
 import styles from './WeatherOverlay.module.css';
 
-const WEATHER_REFRESH_MS = 15 * 60 * 1000;
+const DEFAULT_WEATHER_REFRESH_MINUTES = 15;
 
 interface WeatherOverlayProps {
   enabled: boolean;
   mode: WeatherOverlayMode;
   timedVisible: boolean;
+  refreshIntervalMinutes?: number;
 }
 
 const ICONS: Record<WeatherIcon, typeof Sun> = {
@@ -45,6 +46,7 @@ export function WeatherOverlay({
   enabled,
   mode,
   timedVisible,
+  refreshIntervalMinutes = DEFAULT_WEATHER_REFRESH_MINUTES,
 }: WeatherOverlayProps) {
   const { t, i18n } = useTranslation();
   const [forecast, setForecast] = useState<WeatherForecast | null>(null);
@@ -60,12 +62,13 @@ export function WeatherOverlay({
         .catch(() => undefined);
     };
     refresh();
-    const interval = setInterval(refresh, WEATHER_REFRESH_MS);
+    const intervalMs = Math.max(1, refreshIntervalMinutes) * 60 * 1000;
+    const interval = setInterval(refresh, intervalMs);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [enabled]);
+  }, [enabled, refreshIntervalMinutes]);
 
   if (!forecast?.visible || !forecast.current || !forecast.location)
     return null;
@@ -124,8 +127,6 @@ export function WeatherOverlay({
           );
         })}
       </div>
-
-      <span className={styles.source}>Open-Meteo</span>
     </div>
   );
 }

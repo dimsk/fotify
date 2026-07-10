@@ -191,6 +191,10 @@ export class Settings {
   @Column({ type: 'int', default: 4 })
   weatherForecastDays: number;
 
+  /** How often the cached forecast is refreshed from Open-Meteo, in minutes. */
+  @Column({ type: 'int', default: 15 })
+  weatherRefreshIntervalMinutes: number;
+
   /** Open-Meteo geocoding id; set only by WeatherService after validating a suggested place. */
   @Column({ type: 'int', nullable: true })
   weatherLocationId: number | null;

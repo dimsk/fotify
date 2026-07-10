@@ -75,6 +75,7 @@ export function SlideshowPage() {
   const [weatherOverlayEnabled, setWeatherOverlayEnabled] = useState(false);
   const [weatherOverlayMode, setWeatherOverlayMode] =
     useState<WeatherOverlayMode>('always');
+  const [weatherRefreshIntervalMinutes, setWeatherRefreshIntervalMinutes] = useState(15);
   const [timedOverlayVisible, setTimedOverlayVisible] = useState(false);
 
   useEffect(() => {
@@ -99,6 +100,7 @@ export function SlideshowPage() {
             setDateOverlayMode(settings.dateOverlayMode);
             setWeatherOverlayEnabled(settings.weatherOverlayEnabled);
             setWeatherOverlayMode(settings.weatherOverlayMode);
+            setWeatherRefreshIntervalMinutes(settings.weatherRefreshIntervalMinutes);
           }
         })
         .catch(() => undefined);
@@ -227,6 +229,7 @@ export function SlideshowPage() {
         enabled={weatherOverlayEnabled}
         mode={weatherOverlayMode}
         timedVisible={timedOverlayVisible}
+        refreshIntervalMinutes={weatherRefreshIntervalMinutes}
       />
       <PhotoActionQr />
     </div>

@@ -28,6 +28,7 @@ import { ClientPresenceSetting1783431000000 } from './1783431000000-ClientPresen
 import { SlideshowZoomSetting1783432000000 } from './1783432000000-SlideshowZoomSetting';
 import { AppSecrets1783433000000 } from './1783433000000-AppSecrets';
 import { CalendarSyncIntervalSetting1783434000000 } from './1783434000000-CalendarSyncIntervalSetting';
+import { WeatherRefreshIntervalSetting1783435000000 } from './1783435000000-WeatherRefreshIntervalSetting';
 
 export const migrations = [
   InitialSchema1783265469029,
@@ -60,4 +61,5 @@ export const migrations = [
   SlideshowZoomSetting1783432000000,
   AppSecrets1783433000000,
   CalendarSyncIntervalSetting1783434000000,
+  WeatherRefreshIntervalSetting1783435000000,
 ];

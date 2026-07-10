@@ -140,6 +140,7 @@ export interface Settings {
   weatherOverlayEnabled: boolean;
   weatherOverlayMode: WeatherOverlayMode;
   weatherForecastDays: number;
+  weatherRefreshIntervalMinutes: number;
   weatherLocationId: number | null;
   weatherLocationName: string | null;
   weatherLocationAdmin1: string | null;
@@ -200,6 +201,7 @@ export interface WeatherSettings {
   enabled: boolean;
   mode: WeatherOverlayMode;
   forecastDays: number;
+  refreshIntervalMinutes: number;
   location: WeatherLocationSuggestion | null;
 }
 
@@ -207,6 +209,7 @@ export interface UpdateWeatherSettingsInput {
   enabled: boolean;
   mode: WeatherOverlayMode;
   forecastDays: number;
+  refreshIntervalMinutes: number;
   locationId?: number;
 }
 

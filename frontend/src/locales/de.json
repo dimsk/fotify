@@ -200,6 +200,8 @@
     "behavior": "Anzeigeverhalten",
     "behaviorDescription": "Bei manchen Bildern wird das Wetter gemeinsam mit dem Datum eingeblendet.",
     "forecastDays": "Vorhersage-Tage",
+    "refreshInterval": "Aktualisierungsintervall (Minuten)",
+    "refreshIntervalDescription": "Wie oft die Wetterdaten im Hintergrund von Open-Meteo neu geladen werden.",
     "attribution": "Wetterdaten kommen von Open-Meteo. Der Ort wird über Open-Meteo-Geocoding validiert.",
     "saved": "Wetter-Einstellungen gespeichert",
     "feelsLike": "Gefühlt {{temp}}°"

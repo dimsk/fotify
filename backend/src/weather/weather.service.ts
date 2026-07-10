@@ -13,7 +13,6 @@ const SETTINGS_ID = 1;
 const GEOCODING_BASE_URL = 'https://geocoding-api.open-meteo.com/v1';
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 const REQUEST_TIMEOUT_MS = 5000;
-const FORECAST_CACHE_MS = 15 * 60 * 1000;
 
 interface OpenMeteoLocation {
   id: number;
@@ -64,6 +63,7 @@ export interface WeatherSettingsResponse {
   enabled: boolean;
   mode: WeatherOverlayMode;
   forecastDays: number;
+  refreshIntervalMinutes: number;
   location: WeatherLocationSuggestion | null;
 }
 
@@ -137,6 +137,7 @@ export class WeatherService {
       enabled: settings.weatherOverlayEnabled,
       mode: settings.weatherOverlayMode,
       forecastDays: settings.weatherForecastDays,
+      refreshIntervalMinutes: settings.weatherRefreshIntervalMinutes,
       location: this.locationFromSettings(settings),
     };
   }
@@ -159,6 +160,7 @@ export class WeatherService {
     settings.weatherOverlayEnabled = dto.enabled;
     settings.weatherOverlayMode = dto.mode;
     settings.weatherForecastDays = dto.forecastDays;
+    settings.weatherRefreshIntervalMinutes = dto.refreshIntervalMinutes;
 
     if (location) {
       settings.weatherLocationId = location.id;
@@ -208,7 +210,8 @@ export class WeatherService {
 
     const data = await this.fetchJson<OpenMeteoForecastResponse>(url);
     const value = this.mapForecast(settings, location, data);
-    this.forecastCache = { key, expiresAt: now + FORECAST_CACHE_MS, value };
+    const cacheMs = settings.weatherRefreshIntervalMinutes * 60 * 1000;
+    this.forecastCache = { key, expiresAt: now + cacheMs, value };
     return value;
   }
 

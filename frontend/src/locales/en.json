@@ -200,6 +200,8 @@
     "behavior": "Display behavior",
     "behaviorDescription": "On some photos, weather fades in together with the date.",
     "forecastDays": "Forecast days",
+    "refreshInterval": "Refresh interval (minutes)",
+    "refreshIntervalDescription": "How often weather data is refreshed from Open-Meteo in the background.",
     "attribution": "Weather data comes from Open-Meteo. The location is validated via Open-Meteo Geocoding.",
     "saved": "Weather settings saved",
     "feelsLike": "Feels like {{temp}}°"
