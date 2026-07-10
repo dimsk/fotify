@@ -306,17 +306,10 @@ class MainActivity : AppCompatActivity() {
 
     // ── Key handling ──────────────────────────────────────────────────────
     //
-    // BACK (short press):
-    //   connection-error overlay visible  → retry
-    //   empty-state overlay visible       → open /admin
-    //   on slideshow (no overlay)         → open /admin
-    //   on admin                          → back to slideshow
-    //
-    // BACK (long press): close the app
+    // BACK: close the app immediately.
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            event.startTracking()   // Required for onKeyLongPress to fire
             return true
         }
         return super.onKeyDown(keyCode, event)
@@ -332,23 +325,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (event.isCanceled) return true  // was a long press – already handled
-
-            when {
-                // Error overlay: short BACK = retry connecting
-                binding.connectionErrorOverlay.isVisible -> {
-                    consecutiveErrors = 0
-                    hideAllOverlays()
-                    loadSlideshow()
-                }
-                // Empty-state overlay: short BACK = open admin so user can add sources
-                binding.emptyStateOverlay.isVisible -> {
-                    navigateToAdmin()
-                }
-                // Normal mode: toggle slideshow ↔ admin
-                isAtAdmin -> navigateToSlideshow()
-                else -> navigateToAdmin()
-            }
+            finishAndRemoveTask()
             return true
         }
         return super.onKeyUp(keyCode, event)

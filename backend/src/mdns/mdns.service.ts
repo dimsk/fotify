@@ -70,7 +70,7 @@ export class MdnsService implements OnModuleInit, OnModuleDestroy {
         };
 
         sendBeacon();
-        this.udpInterval = setInterval(sendBeacon, 3000);
+        this.udpInterval = setInterval(sendBeacon, 15000);
         this.logger.log(
           `UDP discovery: listening and broadcasting Fotify on port ${frontendPort} via UDP ${this.discoveryPort}`,
         );

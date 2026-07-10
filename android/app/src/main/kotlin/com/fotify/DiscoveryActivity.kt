@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.BaseAdapter
 import android.widget.ListView
 import android.widget.TextView
@@ -227,11 +228,31 @@ class DiscoveryActivity : AppCompatActivity() {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (binding.manualUrl.hasFocus()) {
+                hideKeyboardAndLeaveManualInput()
+                return true
+            }
+            finishAndRemoveTask()
+            return true
+        }
         if (isConfirmKey(keyCode) && binding.serverList.hasFocus()) {
             connectSelectedServer()
             return true
         }
         return super.onKeyUp(keyCode, event)
+    }
+
+    private fun hideKeyboardAndLeaveManualInput() {
+        val inputMethodManager = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+        inputMethodManager?.hideSoftInputFromWindow(binding.manualUrl.windowToken, 0)
+        binding.manualUrl.clearFocus()
+        if (servers.isNotEmpty()) {
+            binding.serverList.requestFocus()
+            binding.serverList.setSelection(0)
+        } else {
+            binding.connectButton.requestFocus()
+        }
     }
 
     // ── Navigation ────────────────────────────────────────────────────────
