@@ -149,6 +149,7 @@ class MainActivity : AppCompatActivity() {
         wv.isHorizontalScrollBarEnabled = false
         wv.isScrollbarFadingEnabled = true
         wv.overScrollMode = View.OVER_SCROLL_NEVER
+        wv.setInitialScale(computeDesktopLikeInitialScale())
 
         wv.settings.apply {
             javaScriptEnabled = true
@@ -161,40 +162,28 @@ class MainActivity : AppCompatActivity() {
             cacheMode = WebSettings.LOAD_DEFAULT
             useWideViewPort = true
             loadWithOverviewMode = true
+            textZoom = 100
             setSupportZoom(false)
             builtInZoomControls = false
             displayZoomControls = false
         }
 
-        wv.addJavascriptInterface(DisplayBridge(), "FotifyDisplay")
         wv.webViewClient = buildWebViewClient()
         wv.webChromeClient = buildWebChromeClient()
     }
 
-    /** Exposes the native display resolution to the remote Fotify frontend. */
-    inner class DisplayBridge {
-        @JavascriptInterface
-        fun getWidth(): Int = displaySize().first
-
-        @JavascriptInterface
-        fun getHeight(): Int = displaySize().second
-
-        @JavascriptInterface
-        fun getDensity(): Float = resources.displayMetrics.density
-    }
-
-    private fun displaySize(): Pair<Int, Int> {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val bounds = windowManager.currentWindowMetrics.bounds
-            bounds.width() to bounds.height()
-        } else {
-            @Suppress("DEPRECATION")
-            val display = windowManager.defaultDisplay
-            val metrics = android.util.DisplayMetrics()
-            @Suppress("DEPRECATION")
-            display.getRealMetrics(metrics)
-            metrics.widthPixels to metrics.heightPixels
-        }
+    /**
+     * FireTV WebView reports CSS pixels in density-independent units. On a
+     * FullHD TV with density=2 this means a 1920px desktop layout is otherwise
+     * shown as if the viewport were ~960px wide, making overlays huge.
+     *
+     * Scaling the WebView by 1/density makes the remote page render like a
+     * desktop browser on the physical TV resolution, without changing frontend
+     * code or component sizes.
+     */
+    private fun computeDesktopLikeInitialScale(): Int {
+        val density = resources.displayMetrics.density.takeIf { it > 1f } ?: 1f
+        return (100f / density).toInt().coerceIn(25, 100)
     }
 
     private fun buildWebViewClient() = object : WebViewClient() {
