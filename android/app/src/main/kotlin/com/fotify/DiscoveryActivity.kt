@@ -39,6 +39,7 @@ class DiscoveryActivity : AppCompatActivity() {
     private lateinit var udpDiscoveryListener: UdpDiscoveryListener
     private val servers = mutableListOf<FotifyServer>()
     private lateinit var adapter: ServerAdapter
+    private var discoveryRunning = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,9 +63,21 @@ class DiscoveryActivity : AppCompatActivity() {
         startDiscovery()
     }
 
+    override fun onStart() {
+        super.onStart()
+        if (::binding.isInitialized && Prefs.get(this).serverUrl == null) {
+            startDiscovery()
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         if (::binding.isInitialized) applyFullscreen()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        stopDiscovery()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -180,6 +193,11 @@ class DiscoveryActivity : AppCompatActivity() {
     // ── mDNS discovery ────────────────────────────────────────────────────
 
     private fun startDiscovery() {
+        if (discoveryRunning) return
+        discoveryRunning = true
+        binding.scanningLabel.text = getString(R.string.scanning)
+        binding.scanStatusLabel.text = "mDNS + UDP discovery active"
+
         nsd = NsdHelper(this).apply {
             onServerFound = { server ->
                 runOnUiThread { addServer(server) }
@@ -204,10 +222,16 @@ class DiscoveryActivity : AppCompatActivity() {
 
         lanScanner = LanScanner(this)
         lifecycleScope.launch {
-            lanScanner.scan { server ->
-                runOnUiThread { addServer(server) }
-            }
+            lanScanner.scan(
+                onStatus = { status -> runOnUiThread { updateScanStatus(status) } },
+                onServerFound = { server -> runOnUiThread { addServer(server) } },
+            )
         }
+    }
+
+    private fun updateScanStatus(status: String) {
+        if (!discoveryRunning || !::binding.isInitialized) return
+        binding.scanStatusLabel.text = status
     }
 
     private fun addServer(server: FotifyServer) {
@@ -271,9 +295,18 @@ class DiscoveryActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        stopDiscovery()
+    }
+
+    private fun stopDiscovery() {
+        if (!discoveryRunning) return
         if (::nsd.isInitialized) nsd.stopDiscovery()
         if (::udpDiscoveryListener.isInitialized) udpDiscoveryListener.stop()
         if (::lanScanner.isInitialized) lanScanner.stop()
+        discoveryRunning = false
+        if (::binding.isInitialized) {
+            binding.scanStatusLabel.text = "discovery stopped"
+        }
     }
 
     // ── URL parsing helpers ───────────────────────────────────────────────

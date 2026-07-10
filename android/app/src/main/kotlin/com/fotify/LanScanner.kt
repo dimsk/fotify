@@ -36,7 +36,8 @@ class LanScanner(context: Context) {
 
         // Emulator / FireTV discovery cannot rely on the device subnet only:
         // Android Emulator lives in 10.0.2.0/24 while the real LAN is often
-        // 192.168.x.0/24. These prefixes are scanned after detected local ones.
+        // 192.168.x.0/24. Common/default networks are scanned first, then the
+        // full 192.168.*.* private range is scanned as a low-priority fallback.
         private val COMMON_PREFIXES = listOf(
             "192.168.0",
             "192.168.1",
@@ -45,6 +46,8 @@ class LanScanner(context: Context) {
             "10.0.0",
             "10.0.1",
         )
+
+        private val FULL_192_168_PREFIXES = (0..255).map { "192.168.$it" }
     }
 
     private val appContext = context.applicationContext
@@ -52,47 +55,57 @@ class LanScanner(context: Context) {
         appContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
     private var scanJob: Job? = null
 
-    suspend fun scan(onServerFound: (FotifyServer) -> Unit) = withContext(Dispatchers.IO) {
+    suspend fun scan(
+        onStatus: (String) -> Unit,
+        onServerFound: (FotifyServer) -> Unit,
+    ) = withContext(Dispatchers.IO) {
         val prefixes = getCandidatePrefixes()
         if (prefixes.isEmpty()) {
             Log.w(TAG, "No local IPv4 subnet found; LAN scan skipped")
+            onStatus("HTTP scan skipped: no local IPv4")
             return@withContext
         }
         Log.d(TAG, "LAN scan started on ${prefixes.joinToString { "$it.0/24" }}")
+        onStatus("HTTP scan: ${prefixes.size} ranges")
 
         coroutineScope {
             scanJob = coroutineContext[Job]
             val semaphore = Semaphore(96)
-            val candidates = prefixes.flatMap { prefix ->
-                (1..254).flatMap { hostPart -> PORTS.map { port -> "$prefix.$hostPart" to port } }
-            }
 
             // Do not spawn thousands of coroutines at once; older FireTV devices
             // and emulators can become unresponsive. Chunking keeps discovery fast
             // while preserving UI responsiveness.
-            for (chunk in candidates.chunked(192)) {
+            for (prefix in prefixes) {
                 if (!isActive) break
-                chunk.map { (host, port) ->
-                    async {
-                        semaphore.acquire()
-                        try {
-                            if (isActive && isFotifyServer(host, port)) {
-                                onServerFound(
-                                    FotifyServer(
-                                        name = "Fotify@$host:$port",
-                                        host = host,
-                                        port = port,
+                onStatus("HTTP scan: $prefix.0/24")
+                val candidates = (1..254).flatMap { hostPart ->
+                    PORTS.map { port -> "$prefix.$hostPart" to port }
+                }
+                for (chunk in candidates.chunked(192)) {
+                    if (!isActive) break
+                    chunk.map { (host, port) ->
+                        async {
+                            semaphore.acquire()
+                            try {
+                                if (isActive && isFotifyServer(host, port)) {
+                                    onServerFound(
+                                        FotifyServer(
+                                            name = "Fotify@$host:$port",
+                                            host = host,
+                                            port = port,
+                                        )
                                     )
-                                )
+                                }
+                            } finally {
+                                semaphore.release()
                             }
-                        } finally {
-                            semaphore.release()
                         }
-                    }
-                }.awaitAll()
+                    }.awaitAll()
+                }
             }
         }
         Log.d(TAG, "LAN scan finished")
+        onStatus("HTTP scan finished")
     }
 
     fun stop() {
@@ -141,6 +154,8 @@ class LanScanner(context: Context) {
             }
             .map { it.substringBeforeLast('.') }
             .forEach { prefixes.add(it) }
+
+        FULL_192_168_PREFIXES.forEach { prefixes.add(it) }
 
         return prefixes
     }

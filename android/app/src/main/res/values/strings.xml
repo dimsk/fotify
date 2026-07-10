@@ -5,10 +5,11 @@
     <!-- Discovery screen -->
     <string name="discovery_tagline">Photo Slideshow</string>
     <string name="scanning">Searching for servers…</string>
+    <string name="scan_status_starting">starting discovery…</string>
     <string name="found_servers_label">Found servers</string>
     <string name="no_servers_hint">No Fotify servers found on this network.\nEnter the address manually below.</string>
     <string name="manual_entry_label">Enter manually</string>
-    <string name="manual_url_hint">192.168.1.100:15766</string>
+    <string name="manual_url_hint">192.168.1.100  or  192.168.1.100:15766</string>
     <string name="connect">CONNECT</string>
     <string name="enter_address_hint">Please enter an IP address or hostname</string>
     <string name="invalid_address">Invalid address</string>
