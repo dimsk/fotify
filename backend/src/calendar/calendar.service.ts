@@ -178,7 +178,7 @@ export class CalendarService {
       .innerJoinAndSelect('event.calendar', 'calendar')
       .where('calendar.enabled = 1')
       .andWhere('event.startAt < :end', { end })
-      .andWhere('event.endAt >= :start', { start })
+      .andWhere('event.endAt > :start', { start })
       .orderBy('event.isAllDay', 'DESC')
       .addOrderBy('event.startAt', 'ASC')
       .getMany();
