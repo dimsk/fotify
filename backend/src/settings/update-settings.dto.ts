@@ -156,6 +156,12 @@ export class UpdateSettingsDto {
   calendarOverlayEnd?: string;
 
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(1440)
+  calendarSyncIntervalMinutes?: number;
+
+  @IsOptional()
   @IsBoolean()
   dateOverlayEnabled?: boolean;
 

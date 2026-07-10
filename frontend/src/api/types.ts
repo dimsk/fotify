@@ -134,6 +134,7 @@ export interface Settings {
   calendarOverlayEnabled: boolean;
   calendarOverlayStart: string;
   calendarOverlayEnd: string;
+  calendarSyncIntervalMinutes: number;
   dateOverlayEnabled: boolean;
   dateOverlayMode: DateOverlayMode;
   weatherOverlayEnabled: boolean;
@@ -174,6 +175,7 @@ export interface UpdateSettingsInput {
   calendarOverlayEnabled?: boolean;
   calendarOverlayStart?: string;
   calendarOverlayEnd?: string;
+  calendarSyncIntervalMinutes?: number;
   dateOverlayEnabled?: boolean;
   dateOverlayMode?: DateOverlayMode;
   autoRescanEnabled?: boolean;

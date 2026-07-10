@@ -7,9 +7,10 @@ import { api } from '../../api/client';
 interface AddAppleCalendarModalProps {
   opened: boolean;
   onClose: () => void;
+  onConnected?: () => void;
 }
 
-export function AddAppleCalendarModal({ opened, onClose }: AddAppleCalendarModalProps) {
+export function AddAppleCalendarModal({ opened, onClose, onConnected }: AddAppleCalendarModalProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [label, setLabel] = useState('');
@@ -19,7 +20,8 @@ export function AddAppleCalendarModal({ opened, onClose }: AddAppleCalendarModal
   const connectMutation = useMutation({
     mutationFn: () => api.calendar.connectApple({ label: label.trim(), appleId: appleId.trim(), appPassword }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['calendar', 'accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['calendar'] });
+      onConnected?.();
       resetAndClose();
     },
   });

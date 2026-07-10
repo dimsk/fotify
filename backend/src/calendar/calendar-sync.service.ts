@@ -9,6 +9,7 @@ import { CalendarEvent } from './calendar-event.entity';
 import { GoogleOAuthConfigService } from './google-oauth-config.service';
 import { decryptSecret } from '../file-providers/smb-credentials.util';
 import { encryptSecretOrThrow } from './encrypt-or-throw.util';
+import { Settings } from '../settings/settings.entity';
 import {
   GoogleEventParsed,
   listGoogleCalendars,
@@ -58,15 +59,19 @@ export class CalendarSyncService {
     @InjectRepository(CalendarAccount) private readonly accountRepo: Repository<CalendarAccount>,
     @InjectRepository(Calendar) private readonly calendarRepo: Repository<Calendar>,
     @InjectRepository(CalendarEvent) private readonly eventRepo: Repository<CalendarEvent>,
+    @InjectRepository(Settings) private readonly settingsRepo: Repository<Settings>,
     private readonly googleOAuthConfig: GoogleOAuthConfigService,
   ) {}
 
-  @Cron('*/15 * * * *')
+  @Cron('* * * * *')
   async handleScheduledSync(): Promise<void> {
+    const settings = await this.settingsRepo.findOneBy({ id: 1 });
+    const intervalMinutes = settings?.calendarSyncIntervalMinutes ?? 15;
     const accounts = await this.accountRepo.find();
     // Sequential, not Promise.all — one account with a revoked grant or a
     // bad password must not abort the rest.
     for (const account of accounts) {
+      if (!this.shouldSyncAccount(account, intervalMinutes)) continue;
       await this.syncAccount(account.id);
     }
   }
@@ -190,7 +195,10 @@ export class CalendarSyncService {
       return { provider: 'google', accessToken: await this.ensureGoogleAccessToken(account) };
     }
     this.logger.log(`Account ${account.id}: logging into iCloud CalDAV as ${account.appleId}`);
-    const client = createAppleDavClient(account.appleId, decryptSecret(account.applePasswordEnc));
+    const client = createAppleDavClient(
+      account.appleId,
+      this.decryptStoredSecret(account, 'Apple app password', account.applePasswordEnc),
+    );
     try {
       await client.login();
     } catch (err) {
@@ -204,15 +212,49 @@ export class CalendarSyncService {
   private async ensureGoogleAccessToken(account: CalendarAccount): Promise<string> {
     const expiresAt = account.googleAccessTokenExpiresAt ? new Date(account.googleAccessTokenExpiresAt).getTime() : 0;
     if (account.googleAccessTokenEnc && expiresAt - 60_000 > Date.now()) {
-      return decryptSecret(account.googleAccessTokenEnc);
+      return this.decryptStoredSecret(account, 'Google access token', account.googleAccessTokenEnc);
     }
     const { clientId, clientSecret } = await this.googleOAuthConfig.getCredentials();
-    const tokens = await refreshGoogleAccessToken(clientId, clientSecret, decryptSecret(account.googleRefreshTokenEnc));
+    const tokens = await refreshGoogleAccessToken(
+      clientId,
+      clientSecret,
+      this.decryptStoredSecret(account, 'Google refresh token', account.googleRefreshTokenEnc),
+    );
     await this.accountRepo.update(account.id, {
       googleAccessTokenEnc: encryptSecretOrThrow(tokens.accessToken),
       googleAccessTokenExpiresAt: tokens.expiresAt,
     });
     return tokens.accessToken;
+  }
+
+  private decryptStoredSecret(
+    account: CalendarAccount,
+    secretLabel: string,
+    encoded: string | null,
+  ): string {
+    if (!encoded) {
+      throw new Error(`${secretLabel} fehlt für Konto ${account.id}`);
+    }
+    try {
+      return decryptSecret(encoded);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (/authenticate data|authentication tag|unsupported state/i.test(message)) {
+        throw new Error(
+          `${secretLabel} konnte nicht entschlüsselt werden. ` +
+            `Wahrscheinlich passt die aktuelle /app/data/encryption.key nicht mehr zur Datenbank. ` +
+            `Bitte Konto neu verbinden und sicherstellen, dass /app/data/encryption.key persistent erhalten bleibt.`,
+        );
+      }
+      throw err;
+    }
+  }
+
+  private shouldSyncAccount(account: CalendarAccount, intervalMinutes: number): boolean {
+    if (account.status === 'syncing') return false;
+    if (!account.lastSyncedAt) return true;
+    const lastSync = new Date(account.lastSyncedAt).getTime();
+    return Date.now() - lastSync >= intervalMinutes * 60_000;
   }
 
   private async upsertCalendars(accountId: number, remote: RemoteCalendar[]): Promise<Calendar[]> {

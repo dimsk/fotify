@@ -1,9 +1,20 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import Database from 'better-sqlite3';
+import { existsSync, mkdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { getDataDir } from '../common/data-dir.util';
 
+const APP_SECRET_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS "app_secret" (
+    "name" text PRIMARY KEY NOT NULL,
+    "value" text NOT NULL,
+    "createdAt" datetime NOT NULL DEFAULT (datetime('now'))
+  )
+`;
+const ENCRYPTION_SECRET_NAME = 'encryption-key';
+
 let cachedKey: Buffer | null = null;
+let cachedSecret: string | null = null;
 
 function deriveKey(): Buffer {
   if (cachedKey) return cachedKey;
@@ -13,15 +24,46 @@ function deriveKey(): Buffer {
 }
 
 function loadOrCreatePersistedSecret(): string {
+  if (cachedSecret) return cachedSecret;
+
+  const db = openSecretsDb();
+  try {
+    db.exec(APP_SECRET_TABLE_SQL);
+    const existing = db
+      .prepare(`SELECT value FROM "app_secret" WHERE name = ?`)
+      .get(ENCRYPTION_SECRET_NAME) as { value: string } | undefined;
+    if (existing?.value?.trim()) {
+      cachedSecret = existing.value.trim();
+      return cachedSecret;
+    }
+
+    const secret = loadLegacyFileSecret() ?? randomBytes(32).toString('hex');
+    db.prepare(
+      `INSERT INTO "app_secret" (name, value) VALUES (?, ?)
+       ON CONFLICT(name) DO UPDATE SET value = excluded.value`,
+    ).run(ENCRYPTION_SECRET_NAME, secret);
+    cachedSecret = secret;
+    return secret;
+  } finally {
+    db.close();
+  }
+}
+
+function openSecretsDb(): Database.Database {
+  const dataDir = getDataDir();
+  mkdirSync(dataDir, { recursive: true });
+  const dbPath = join(dataDir, 'fotify.db');
+  return new Database(dbPath);
+}
+
+function loadLegacyFileSecret(): string | null {
   const dataDir = getDataDir();
   const keyPath = join(dataDir, 'encryption.key');
   if (existsSync(keyPath)) {
-    return readFileSync(keyPath, 'utf8').trim();
+    const secret = readFileSync(keyPath, 'utf8').trim();
+    return secret || null;
   }
-  mkdirSync(dataDir, { recursive: true });
-  const generated = randomBytes(32).toString('hex');
-  writeFileSync(keyPath, generated, { mode: 0o600 });
-  return generated;
+  return null;
 }
 
 export function encryptSecret(plainText: string): string {

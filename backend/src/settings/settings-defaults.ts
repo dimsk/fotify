@@ -37,6 +37,7 @@ export const DEFAULT_SETTINGS: Partial<Settings> = {
   calendarOverlayEnabled: true,
   calendarOverlayStart: '07:00',
   calendarOverlayEnd: '22:00',
+  calendarSyncIntervalMinutes: 15,
   dateOverlayEnabled: true,
   dateOverlayMode: 'always',
   weatherOverlayEnabled: true,

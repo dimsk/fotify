@@ -223,6 +223,8 @@
     "displayWindow": "Anzeigezeitraum",
     "showOverlay": "Kalender-Overlay anzeigen",
     "showOverlayDescription": "Zeigt die heutigen Termine als Overlay über der Diashow, solange die aktuelle Uhrzeit im angegebenen Zeitraum liegt.",
+    "syncInterval": "Hintergrund-Sync-Intervall (Minuten)",
+    "syncIntervalDescription": "Wie oft verbundene Kalenderkonten automatisch im Hintergrund aktualisiert werden.",
     "resync": "Neu synchronisieren",
     "appleProvider": "Apple (iCloud)",
     "addAppleTitle": "Apple-Kalender hinzufügen",

@@ -26,6 +26,8 @@ import { PhotoAction1783429000000 } from './1783429000000-PhotoAction';
 import { LanguageSetting1783430000000 } from './1783430000000-LanguageSetting';
 import { ClientPresenceSetting1783431000000 } from './1783431000000-ClientPresenceSetting';
 import { SlideshowZoomSetting1783432000000 } from './1783432000000-SlideshowZoomSetting';
+import { AppSecrets1783433000000 } from './1783433000000-AppSecrets';
+import { CalendarSyncIntervalSetting1783434000000 } from './1783434000000-CalendarSyncIntervalSetting';
 
 export const migrations = [
   InitialSchema1783265469029,
@@ -56,4 +58,6 @@ export const migrations = [
   LanguageSetting1783430000000,
   ClientPresenceSetting1783431000000,
   SlideshowZoomSetting1783432000000,
+  AppSecrets1783433000000,
+  CalendarSyncIntervalSetting1783434000000,
 ];

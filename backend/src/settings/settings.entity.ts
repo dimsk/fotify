@@ -161,6 +161,10 @@ export class Settings {
   @Column({ type: 'text', default: '22:00' })
   calendarOverlayEnd: string;
 
+  /** How often connected calendar accounts are resynced in the background. */
+  @Column({ type: 'int', default: 15 })
+  calendarSyncIntervalMinutes: number;
+
   /** If true, the current date/time is rendered in the slideshow's top-right corner. */
   @Column({ type: 'boolean', default: true })
   dateOverlayEnabled: boolean;

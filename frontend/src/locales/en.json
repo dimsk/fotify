@@ -223,6 +223,8 @@
     "displayWindow": "Display window",
     "showOverlay": "Show calendar overlay",
     "showOverlayDescription": "Shows today's events as an overlay over the slideshow while the current time is inside the configured period.",
+    "syncInterval": "Background sync interval (minutes)",
+    "syncIntervalDescription": "How often connected calendar accounts are refreshed automatically in the background.",
     "resync": "Resync",
     "appleProvider": "Apple (iCloud)",
     "addAppleTitle": "Add Apple calendar",

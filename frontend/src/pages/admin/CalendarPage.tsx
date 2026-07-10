@@ -20,6 +20,7 @@ export function CalendarPage() {
   const [pendingDelete, setPendingDelete] = useState<CalendarAccount | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const handledConnectResult = useRef(false);
+  const previousAccountStatus = useRef<Map<number, CalendarAccount['status']>>(new Map());
 
   // Surfaces the outcome of the Google OAuth round-trip (see
   // calendar.controller.ts's connectGoogle/googleCallback, which redirect
@@ -33,7 +34,7 @@ export function CalendarPage() {
     if (!connected) return;
     handledConnectResult.current = true;
     if (connected === 'google') {
-      queryClient.invalidateQueries({ queryKey: ['calendar', 'accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['calendar'] });
       notifications.show({ message: t('calendar.connectedGoogle'), color: 'teal' });
     } else if (connected === 'error') {
       notifications.show({
@@ -57,6 +58,20 @@ export function CalendarPage() {
     queryFn: api.calendar.accounts,
     refetchInterval: (query) => (query.state.data?.some((a) => a.status === 'syncing') ? 2000 : false),
   });
+
+  useEffect(() => {
+    for (const account of accounts) {
+      const previous = previousAccountStatus.current.get(account.id);
+      if (previous === undefined || previous !== account.status) {
+        queryClient.invalidateQueries({ queryKey: ['calendar', 'calendars', account.id] });
+      }
+      previousAccountStatus.current.set(account.id, account.status);
+    }
+    const validIds = new Set(accounts.map((account) => account.id));
+    for (const id of previousAccountStatus.current.keys()) {
+      if (!validIds.has(id)) previousAccountStatus.current.delete(id);
+    }
+  }, [accounts, queryClient]);
 
   const resyncMutation = useMutation({
     mutationFn: (id: number) => api.calendar.resync(id),
@@ -124,7 +139,11 @@ export function CalendarPage() {
 
       <DisplayScheduleSection />
 
-      <AddAppleCalendarModal opened={appleModalOpen} onClose={() => setAppleModalOpen(false)} />
+      <AddAppleCalendarModal
+        opened={appleModalOpen}
+        onClose={() => setAppleModalOpen(false)}
+        onConnected={() => queryClient.invalidateQueries({ queryKey: ['calendar'] })}
+      />
 
       <GoogleSetupGuideModal opened={googleGuideOpen} onClose={() => setGoogleGuideOpen(false)} />
 
@@ -157,12 +176,14 @@ function DisplayScheduleSection() {
   const [enabled, setEnabled] = useState(false);
   const [start, setStart] = useState('07:00');
   const [end, setEnd] = useState('22:00');
+  const [syncIntervalMinutes, setSyncIntervalMinutes] = useState(15);
 
   useEffect(() => {
     if (!settings) return;
     setEnabled(settings.calendarOverlayEnabled);
     setStart(settings.calendarOverlayStart);
     setEnd(settings.calendarOverlayEnd);
+    setSyncIntervalMinutes(settings.calendarSyncIntervalMinutes);
   }, [settings]);
 
   const updateMutation = useMutation({
@@ -178,6 +199,7 @@ function DisplayScheduleSection() {
       calendarOverlayEnabled: enabled,
       calendarOverlayStart: start,
       calendarOverlayEnd: end,
+      calendarSyncIntervalMinutes: syncIntervalMinutes,
     });
   }
 
@@ -210,6 +232,13 @@ function DisplayScheduleSection() {
             disabled={!enabled}
           />
         </Group>
+        <TextInput
+          type="number"
+          label={t('calendar.syncInterval')}
+          description={t('calendar.syncIntervalDescription')}
+          value={String(syncIntervalMinutes)}
+          onChange={(e) => setSyncIntervalMinutes(Math.max(1, Number(e.currentTarget.value) || 1))}
+        />
         <Button onClick={save} loading={updateMutation.isPending} w={{ base: '100%', sm: 200 }}>
           {t('common.save')}
         </Button>
