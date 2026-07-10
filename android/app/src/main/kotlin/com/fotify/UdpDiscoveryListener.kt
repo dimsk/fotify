@@ -108,6 +108,7 @@ class UdpDiscoveryListener(context: Context) {
                 name = json.optString("name", "Fotify@$senderHost:$port"),
                 host = senderHost,
                 port = port,
+                method = "UDP",
             )
         } catch (_: Exception) {
             null

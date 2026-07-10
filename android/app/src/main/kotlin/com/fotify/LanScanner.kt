@@ -93,6 +93,7 @@ class LanScanner(context: Context) {
                                             name = "Fotify@$host:$port",
                                             host = host,
                                             port = port,
+                                            method = "HTTP scan",
                                         )
                                     )
                                 }

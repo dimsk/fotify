@@ -13,6 +13,7 @@ data class FotifyServer(
     val name: String,
     val host: String,
     val port: Int,
+    val method: String = "Unknown",
 ) {
     /** Full base URL that the Android WebView can load. */
     val url: String get() = "http://$host:$port"
@@ -140,6 +141,7 @@ class NsdHelper(context: Context) {
                             name = serviceInfo.serviceName,
                             host = host,
                             port = port,
+                            method = "mDNS",
                         )
                     )
                 }

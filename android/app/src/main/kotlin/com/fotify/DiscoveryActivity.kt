@@ -187,7 +187,7 @@ class DiscoveryActivity : AppCompatActivity() {
             return
         }
 
-        connectTo(FotifyServer(name = raw, host = host, port = port))
+        connectTo(FotifyServer(name = raw, host = host, port = port, method = "Manual"))
     }
 
     // ── mDNS discovery ────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ class DiscoveryActivity : AppCompatActivity() {
         if (discoveryRunning) return
         discoveryRunning = true
         binding.scanningLabel.text = getString(R.string.scanning)
-        binding.scanStatusLabel.text = "mDNS + UDP discovery active"
+        binding.scanStatusLabel.text = "mDNS active · UDP broadcast active · HTTP scan starting"
 
         nsd = NsdHelper(this).apply {
             onServerFound = { server ->
@@ -340,7 +340,8 @@ class DiscoveryActivity : AppCompatActivity() {
             val server = servers[position]
             view.findViewById<TextView>(R.id.serverName).text = server.name
             view.findViewById<TextView>(R.id.serverAddress).text =
-                getString(R.string.server_address_format, server.host, server.port)
+                getString(R.string.server_url_format, server.host, server.port)
+            view.findViewById<TextView>(R.id.serverMethod).text = server.method
             view.setOnClickListener { connectTo(server) }
             return view
         }
