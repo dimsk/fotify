@@ -20,6 +20,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import com.fotify.databinding.ActivityDiscoveryBinding
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -38,6 +40,7 @@ class DiscoveryActivity : AppCompatActivity() {
     companion object {
         private const val DISCOVERY_CACHE_PREFS = "fotify_discovery_cache"
         private const val KEY_CACHED_SERVERS = "cached_servers"
+        private const val HTTP_SCAN_DELAY_MS = 8_000L
     }
 
     private lateinit var binding: ActivityDiscoveryBinding
@@ -47,6 +50,8 @@ class DiscoveryActivity : AppCompatActivity() {
     private val servers = mutableListOf<FotifyServer>()
     private lateinit var adapter: ServerAdapter
     private var discoveryRunning = false
+    private var httpScanStarted = false
+    private var httpScanDelayJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -203,8 +208,9 @@ class DiscoveryActivity : AppCompatActivity() {
     private fun startDiscovery() {
         if (discoveryRunning) return
         discoveryRunning = true
+        httpScanStarted = false
         binding.scanningLabel.text = getString(R.string.scanning)
-        binding.scanStatusLabel.text = "mDNS active · UDP broadcast active · HTTP scan starting"
+        binding.scanStatusLabel.text = discoveryStatus("HTTP scan waiting")
 
         nsd = NsdHelper(this).apply {
             onServerFound = { server ->
@@ -232,19 +238,39 @@ class DiscoveryActivity : AppCompatActivity() {
 
         lanScanner = LanScanner(this)
         if (servers.isEmpty()) {
-            lanScanner.scan(
-                onStatus = { status -> runOnUiThread { updateScanStatus(status) } },
-                onServerFound = { server -> runOnUiThread { addServer(server) } },
-            )
+            scheduleHttpScanIfNeeded()
         } else {
-            updateScanStatus("known servers loaded · mDNS/UDP active")
+            updateScanStatus("known servers loaded")
         }
+    }
+
+    private fun scheduleHttpScanIfNeeded() {
+        httpScanDelayJob?.cancel()
+        httpScanDelayJob = lifecycleScope.launch {
+            delay(HTTP_SCAN_DELAY_MS)
+            if (discoveryRunning && servers.isEmpty()) {
+                startHttpScan()
+            }
+        }
+    }
+
+    private fun startHttpScan() {
+        if (httpScanStarted || !discoveryRunning || !::lanScanner.isInitialized) return
+        httpScanStarted = true
+        updateScanStatus("HTTP scan starting")
+        lanScanner.scan(
+            onStatus = { status -> runOnUiThread { updateScanStatus(status) } },
+            onServerFound = { server -> runOnUiThread { addServer(server) } },
+        )
     }
 
     private fun updateScanStatus(status: String) {
         if (!discoveryRunning || !::binding.isInitialized) return
-        binding.scanStatusLabel.text = status
+        binding.scanStatusLabel.text = discoveryStatus(status)
     }
+
+    private fun discoveryStatus(extra: String): String =
+        "mDNS active\nUDP active\n$extra"
 
     private fun addServer(server: FotifyServer) {
         val alreadyKnown = servers.any { it.host == server.host && it.port == server.port }
@@ -257,6 +283,7 @@ class DiscoveryActivity : AppCompatActivity() {
         binding.serverList.isVisible = true
         // Once a server is known, stop the expensive full 192.168.*.* HTTP scan.
         // mDNS/UDP stay active while this screen is visible.
+        httpScanDelayJob?.cancel()
         if (::lanScanner.isInitialized) lanScanner.stop()
         updateScanStatus("found via ${server.method}: ${server.host}:${server.port}")
         if (wasEmpty) {
@@ -324,9 +351,12 @@ class DiscoveryActivity : AppCompatActivity() {
 
     private fun stopDiscovery() {
         if (!discoveryRunning) return
+        httpScanDelayJob?.cancel()
+        httpScanDelayJob = null
         if (::nsd.isInitialized) nsd.stopDiscovery()
         if (::udpDiscoveryListener.isInitialized) udpDiscoveryListener.stop()
         if (::lanScanner.isInitialized) lanScanner.stop()
+        httpScanStarted = false
         discoveryRunning = false
         if (::binding.isInitialized) {
             binding.scanStatusLabel.text = "discovery stopped"
