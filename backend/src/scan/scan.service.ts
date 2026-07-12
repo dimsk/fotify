@@ -287,7 +287,7 @@ export class ScanService implements OnApplicationBootstrap {
     locationCheckedAt: Date;
   }> {
     const gps = await exifr.gps(buffer).catch(() => null);
-    if (!gps) {
+    if (!gps || !Number.isFinite(gps.latitude) || !Number.isFinite(gps.longitude)) {
       return {
         gpsLatitude: null,
         gpsLongitude: null,
