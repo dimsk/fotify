@@ -20,7 +20,10 @@ export function SourcesPage() {
     queryFn: api.sources.list,
     refetchInterval: (query) =>
       query.state.data?.some(
-        (s) => s.status === 'scanning' || s.locationBackfillActive,
+        (s) =>
+          s.status === 'scanning' ||
+          s.locationBackfillActive ||
+          s.lensApertureBackfillActive,
       )
         ? 2000
         : false,
@@ -36,6 +39,17 @@ export function SourcesPage() {
     onSuccess: () => {
       notifications.show({
         message: t('sources.locationBackfillStarted'),
+        color: 'teal',
+      });
+      queryClient.invalidateQueries({ queryKey: ['sources'] });
+    },
+  });
+
+  const backfillLensApertureMutation = useMutation({
+    mutationFn: (id: number) => api.sources.backfillLensAperture(id),
+    onSuccess: () => {
+      notifications.show({
+        message: t('sources.lensApertureBackfillStarted'),
         color: 'teal',
       });
       queryClient.invalidateQueries({ queryKey: ['sources'] });
@@ -95,6 +109,9 @@ export function SourcesPage() {
                 onRescan={(id) => rescanMutation.mutate(id)}
                 onBackfillLocations={(id) =>
                   backfillLocationsMutation.mutateAsync(id)
+                }
+                onBackfillLensAperture={(id) =>
+                  backfillLensApertureMutation.mutateAsync(id)
                 }
                 onPause={(id) => pauseMutation.mutate(id)}
                 onResume={(id) => resumeMutation.mutate(id)}

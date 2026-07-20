@@ -12,6 +12,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
+  Aperture,
   FolderOpen,
   MapPin,
   Pause,
@@ -23,18 +24,22 @@ import {
 import type { Source } from '../../api/types';
 import { useScanProgress } from '../../hooks/useScanProgress';
 
-const STATUS_COLOR: Record<Source['status'] | 'backfilling_locations', string> =
-  {
-    idle: 'teal',
-    scanning: 'blue',
-    backfilling_locations: 'violet',
-    error: 'red',
-  };
+const STATUS_COLOR: Record<
+  Source['status'] | 'backfilling_locations' | 'backfilling_lens_aperture',
+  string
+> = {
+  idle: 'teal',
+  scanning: 'blue',
+  backfilling_locations: 'violet',
+  backfilling_lens_aperture: 'orange',
+  error: 'red',
+};
 
 interface SourceRowProps {
   source: Source;
   onRescan: (id: number) => void;
   onBackfillLocations: (id: number) => Promise<void>;
+  onBackfillLensAperture: (id: number) => Promise<void>;
   onPause: (id: number) => void;
   onResume: (id: number) => void;
   onDelete: (source: Source) => void;
@@ -44,6 +49,7 @@ export function SourceRow({
   source,
   onRescan,
   onBackfillLocations,
+  onBackfillLensAperture,
   onPause,
   onResume,
   onDelete,
@@ -51,22 +57,32 @@ export function SourceRow({
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [locationBackfillActive, setLocationBackfillActive] = useState(false);
+  const [lensApertureBackfillActive, setLensApertureBackfillActive] =
+    useState(false);
   const progress = useScanProgress(
     source.status === 'scanning' ||
       locationBackfillActive ||
-      source.locationBackfillActive
+      source.locationBackfillActive ||
+      lensApertureBackfillActive ||
+      source.lensApertureBackfillActive
       ? source.id
       : null,
   );
   const scanProgress = progress?.status === 'scanning' ? progress : null;
   const locationProgress =
     progress?.status === 'backfilling_locations' ? progress : null;
+  const lensApertureProgress =
+    progress?.status === 'backfilling_lens_aperture' ? progress : null;
   const isLocationBackfilling =
     locationBackfillActive || source.locationBackfillActive;
+  const isLensApertureBackfilling =
+    lensApertureBackfillActive || source.lensApertureBackfillActive;
   const displayedStatus =
     locationProgress || isLocationBackfilling
       ? 'backfilling_locations'
-      : source.status;
+      : lensApertureProgress || isLensApertureBackfilling
+        ? 'backfilling_lens_aperture'
+        : source.status;
 
   const location =
     source.type === 'local'
@@ -86,12 +102,34 @@ export function SourceRow({
     }
   }, [locationBackfillActive, progress, queryClient]);
 
+  useEffect(() => {
+    if (
+      !lensApertureBackfillActive ||
+      !progress ||
+      progress.status === 'backfilling_lens_aperture'
+    )
+      return;
+    if (progress.status === 'idle' || progress.status === 'error') {
+      setLensApertureBackfillActive(false);
+      queryClient.invalidateQueries({ queryKey: ['sources'] });
+    }
+  }, [lensApertureBackfillActive, progress, queryClient]);
+
   const handleLocationBackfill = async () => {
     setLocationBackfillActive(true);
     try {
       await onBackfillLocations(source.id);
     } catch {
       setLocationBackfillActive(false);
+    }
+  };
+
+  const handleLensApertureBackfill = async () => {
+    setLensApertureBackfillActive(true);
+    try {
+      await onBackfillLensAperture(source.id);
+    } catch {
+      setLensApertureBackfillActive(false);
     }
   };
 
@@ -137,7 +175,9 @@ export function SourceRow({
               {t(
                 displayedStatus === 'backfilling_locations'
                   ? 'sources.status.backfilling'
-                  : `sources.status.${displayedStatus}`,
+                  : displayedStatus === 'backfilling_lens_aperture'
+                    ? 'sources.status.backfillingLensAperture'
+                    : `sources.status.${displayedStatus}`,
               )}
             </Badge>
           </Tooltip>
@@ -180,6 +220,43 @@ export function SourceRow({
                 {t('sources.locationsOpen', { count: source.photosNeedingLocationBackfill })}
               </Text>
             )}
+          {lensApertureProgress && (
+            <>
+              <Text size="xs" c="dimmed">
+                {lensApertureProgress.total > 0
+                  ? t('sources.lensApertureCount', {
+                      processed: lensApertureProgress.processed,
+                      total: lensApertureProgress.total,
+                    })
+                  : t('sources.checkingLensAperture')}
+              </Text>
+              {lensApertureProgress.total > 0 && (
+                <Progress
+                  value={
+                    (lensApertureProgress.processed /
+                      lensApertureProgress.total) *
+                    100
+                  }
+                  size="xs"
+                  color="orange"
+                />
+              )}
+            </>
+          )}
+          {isLensApertureBackfilling && !lensApertureProgress && (
+            <Text size="xs" c="dimmed">
+              {t('sources.checkingLensAperture')}
+            </Text>
+          )}
+          {!isLensApertureBackfilling &&
+            !lensApertureProgress &&
+            source.photosNeedingLensApertureBackfill > 0 && (
+              <Text size="xs" c="dimmed">
+                {t('sources.lensApertureOpen', {
+                  count: source.photosNeedingLensApertureBackfill,
+                })}
+              </Text>
+            )}
         </Stack>
       </Table.Td>
       <Table.Td>
@@ -211,6 +288,26 @@ export function SourceRow({
               }
             >
               <MapPin size={16} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip
+            label={
+              source.photosNeedingLensApertureBackfill === 0
+                ? t('sources.lensApertureChecked')
+                : t('sources.checkLensAperture')
+            }
+          >
+            <ActionIcon
+              variant="subtle"
+              color="orange"
+              onClick={handleLensApertureBackfill}
+              disabled={
+                source.status === 'scanning' ||
+                isLensApertureBackfilling ||
+                source.photosNeedingLensApertureBackfill === 0
+              }
+            >
+              <Aperture size={16} />
             </ActionIcon>
           </Tooltip>
           {source.paused ? (

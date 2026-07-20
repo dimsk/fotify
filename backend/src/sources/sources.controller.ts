@@ -45,6 +45,12 @@ export class SourcesController {
     await this.sourcesService.backfillLocations(id);
   }
 
+  @Post(':id/backfill-lens-aperture')
+  @HttpCode(202)
+  async backfillLensAperture(@Param('id', ParseIntPipe) id: number) {
+    await this.sourcesService.backfillLensAperture(id);
+  }
+
   @Post(':id/pause')
   @HttpCode(204)
   async pause(@Param('id', ParseIntPipe) id: number) {

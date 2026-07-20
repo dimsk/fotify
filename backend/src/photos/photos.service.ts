@@ -15,6 +15,8 @@ export interface SlidePhoto {
   capturedAt: string | null;
   locationCity: string | null;
   locationCountry: string | null;
+  lens: string | null;
+  aperture: number | null;
 }
 
 export type SlidePlan =

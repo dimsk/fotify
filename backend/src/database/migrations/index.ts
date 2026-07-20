@@ -29,6 +29,8 @@ import { SlideshowZoomSetting1783432000000 } from './1783432000000-SlideshowZoom
 import { AppSecrets1783433000000 } from './1783433000000-AppSecrets';
 import { CalendarSyncIntervalSetting1783434000000 } from './1783434000000-CalendarSyncIntervalSetting';
 import { WeatherRefreshIntervalSetting1783435000000 } from './1783435000000-WeatherRefreshIntervalSetting';
+import { PhotoLensAperture1783436000000 } from './1783436000000-PhotoLensAperture';
+import { PhotoLensApertureScanned1783437000000 } from './1783437000000-PhotoLensApertureScanned';
 
 export const migrations = [
   InitialSchema1783265469029,
@@ -62,4 +64,6 @@ export const migrations = [
   AppSecrets1783433000000,
   CalendarSyncIntervalSetting1783434000000,
   WeatherRefreshIntervalSetting1783435000000,
+  PhotoLensAperture1783436000000,
+  PhotoLensApertureScanned1783437000000,
 ];

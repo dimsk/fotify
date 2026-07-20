@@ -47,6 +47,28 @@ export class Photo {
   @Column({ type: 'datetime', nullable: true })
   capturedAt: Date | null;
 
+  /** Lens model as reported by EXIF (LensModel tag) — null if absent from the file. */
+  @Column({ type: 'text', nullable: true })
+  lens: string | null;
+
+  /** Aperture (f-number) as reported by EXIF (FNumber tag), e.g. 2.8 for f/2.8. */
+  @Column({ type: 'real', nullable: true })
+  aperture: number | null;
+
+  @Index('IDX_photo_lens_aperture_scanned')
+  @Column({ type: 'boolean', default: false })
+  lensApertureScanned: boolean;
+
+  /**
+   * Stamped the first time lens/aperture EXIF extraction has been attempted
+   * for this photo (whether or not the tags were actually present) —
+   * distinguishes "no lens/aperture EXIF in this photo" from "imported
+   * before this feature existed, never checked yet", mirroring
+   * locationCheckedAt/locationScanned above.
+   */
+  @Column({ type: 'datetime', nullable: true })
+  lensApertureCheckedAt: Date | null;
+
   @Column({ type: 'real', nullable: true })
   gpsLatitude: number | null;
 

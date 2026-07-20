@@ -21,7 +21,12 @@ const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.heic', '.heif']);
 const SCAN_CONCURRENCY = 6;
 
 export interface ScanProgressEvent {
-  status: 'scanning' | 'backfilling_locations' | 'idle' | 'error';
+  status:
+    | 'scanning'
+    | 'backfilling_locations'
+    | 'backfilling_lens_aperture'
+    | 'idle'
+    | 'error';
   processed: number;
   total: number;
   currentFile?: string;
@@ -37,6 +42,7 @@ export class ScanService implements OnApplicationBootstrap {
   >();
   private readonly activeScans = new Set<number>();
   private readonly activeLocationBackfills = new Set<number>();
+  private readonly activeLensApertureBackfills = new Set<number>();
 
   constructor(
     @InjectRepository(Source) private readonly sourceRepo: Repository<Source>,
@@ -66,7 +72,8 @@ export class ScanService implements OnApplicationBootstrap {
   async progress$(sourceId: number): Promise<Observable<ScanProgressEvent>> {
     if (
       this.activeScans.has(sourceId) ||
-      this.activeLocationBackfills.has(sourceId)
+      this.activeLocationBackfills.has(sourceId) ||
+      this.activeLensApertureBackfills.has(sourceId)
     ) {
       return this.subjectFor(sourceId).asObservable();
     }
@@ -238,14 +245,26 @@ export class ScanService implements OnApplicationBootstrap {
       );
 
       let capturedAt: Date | null = null;
+      let lens: string | null = null;
+      let aperture: number | null = null;
       try {
         const exifData = await exifr.parse(buffer, {
-          pick: ['DateTimeOriginal', 'CreateDate'],
+          pick: ['DateTimeOriginal', 'CreateDate', 'LensModel', 'FNumber'],
         });
         const date = exifData?.DateTimeOriginal ?? exifData?.CreateDate;
         capturedAt = date instanceof Date ? date : null;
+        lens =
+          typeof exifData?.LensModel === 'string' && exifData.LensModel.trim()
+            ? exifData.LensModel.trim()
+            : null;
+        aperture =
+          typeof exifData?.FNumber === 'number' && Number.isFinite(exifData.FNumber)
+            ? exifData.FNumber
+            : null;
       } catch {
         capturedAt = null;
+        lens = null;
+        aperture = null;
       }
 
       const location = await this.extractLocation(buffer);
@@ -261,6 +280,10 @@ export class ScanService implements OnApplicationBootstrap {
         height: dims.height,
         orientation: dims.orientation,
         capturedAt,
+        lens,
+        aperture,
+        lensApertureScanned: true,
+        lensApertureCheckedAt: new Date(),
         cachedDisplayPath: null,
         ...location,
       });
@@ -308,6 +331,44 @@ export class ScanService implements OnApplicationBootstrap {
       locationCountry: resolved?.country ?? null,
       locationScanned: true,
       locationCheckedAt: new Date(),
+    };
+  }
+
+  /**
+   * Lens/aperture extraction is cheap (parsing the already-in-memory EXIF
+   * buffer, no network lookup like the location backfill needs). lensApertureCheckedAt
+   * is stamped regardless of whether the tags were found, so a photo
+   * without lens/aperture EXIF is never needlessly re-read by the backfill.
+   */
+  private async extractLensAperture(buffer: Buffer): Promise<{
+    lens: string | null;
+    aperture: number | null;
+    lensApertureScanned: boolean;
+    lensApertureCheckedAt: Date;
+  }> {
+    let lens: string | null = null;
+    let aperture: number | null = null;
+    try {
+      const exifData = await exifr.parse(buffer, {
+        pick: ['LensModel', 'FNumber'],
+      });
+      lens =
+        typeof exifData?.LensModel === 'string' && exifData.LensModel.trim()
+          ? exifData.LensModel.trim()
+          : null;
+      aperture =
+        typeof exifData?.FNumber === 'number' && Number.isFinite(exifData.FNumber)
+          ? exifData.FNumber
+          : null;
+    } catch {
+      lens = null;
+      aperture = null;
+    }
+    return {
+      lens,
+      aperture,
+      lensApertureScanned: true,
+      lensApertureCheckedAt: new Date(),
     };
   }
 
@@ -464,6 +525,170 @@ export class ScanService implements OnApplicationBootstrap {
         subject.complete();
         this.progressSubjects.delete(reservedSourceId);
         this.activeLocationBackfills.delete(reservedSourceId);
+      }
+      throw err;
+    }
+  }
+
+  /** Fire-and-forget: caller does not await backfill completion. */
+  triggerLensApertureBackfill(sourceId?: number): void {
+    this.backfillLensAperture(sourceId).catch((err) => {
+      this.logger.error('Lens/aperture backfill failed', err);
+    });
+  }
+
+  isLensApertureBackfillActive(sourceId: number): boolean {
+    return this.activeLensApertureBackfills.has(sourceId);
+  }
+
+  /**
+   * Re-reads every photo imported before this feature existed
+   * (lensApertureScanned = false) from its original file to extract the
+   * lens model and aperture, grouped by source so each source's
+   * FileProvider connects only once. Mirrors backfillLocations above.
+   */
+  private async backfillLensAperture(sourceId?: number): Promise<void> {
+    if (
+      sourceId !== undefined &&
+      this.activeLensApertureBackfills.has(sourceId)
+    )
+      return;
+    if (sourceId !== undefined && this.activeScans.has(sourceId)) return;
+    const reservedSourceId = sourceId;
+    if (reservedSourceId !== undefined) {
+      this.activeLensApertureBackfills.add(reservedSourceId);
+      this.subjectFor(reservedSourceId).next({
+        status: 'backfilling_lens_aperture',
+        processed: 0,
+        total: 0,
+      });
+    }
+    try {
+      const query = this.photoRepo
+        .createQueryBuilder('photo')
+        .where('photo.lensApertureScanned = :lensApertureScanned', {
+          lensApertureScanned: false,
+        });
+      if (sourceId !== undefined) {
+        query.andWhere('photo.sourceId = :sourceId', { sourceId });
+      }
+      const photos = await query.getMany();
+      this.logger.log(
+        `Lens/aperture backfill: ${photos.length} photo(s) to check`,
+      );
+
+      const bySource = new Map<number, Photo[]>();
+      for (const photo of photos) {
+        const group = bySource.get(photo.sourceId);
+        if (group) group.push(photo);
+        else bySource.set(photo.sourceId, [photo]);
+      }
+
+      const limit = pLimit(SCAN_CONCURRENCY);
+      for (const [currentSourceId, sourcePhotos] of bySource) {
+        const isReservedSource = currentSourceId === reservedSourceId;
+        if (
+          !isReservedSource &&
+          (this.activeLensApertureBackfills.has(currentSourceId) ||
+            this.activeScans.has(currentSourceId))
+        ) {
+          continue;
+        }
+        const source = await this.sourceRepo.findOneBy({ id: currentSourceId });
+        if (!source) {
+          if (isReservedSource) {
+            const subject = this.subjectFor(currentSourceId);
+            subject.next({ status: 'idle', processed: 0, total: 0 });
+            subject.complete();
+            this.progressSubjects.delete(currentSourceId);
+            this.activeLensApertureBackfills.delete(currentSourceId);
+          }
+          continue;
+        }
+        if (!isReservedSource) {
+          this.activeLensApertureBackfills.add(currentSourceId);
+        }
+        const subject = this.subjectFor(currentSourceId);
+        let processed = 0;
+        subject.next({
+          status: 'backfilling_lens_aperture',
+          processed,
+          total: sourcePhotos.length,
+        });
+        const provider = this.fileProviderFactory.forSource(source);
+        try {
+          await provider.connect();
+          await Promise.all(
+            sourcePhotos.map((photo) =>
+              limit(async () => {
+                try {
+                  const buffer = await provider.readFile(photo.relativePath);
+                  const lensAperture = await cpuWorkLimiter(() =>
+                    this.extractLensAperture(buffer),
+                  );
+                  await this.photoRepo.update(photo.id, lensAperture);
+                } catch (err) {
+                  this.logger.warn(
+                    `Lens/aperture backfill failed for photo ${photo.id}: ${(err as Error).message}`,
+                  );
+                } finally {
+                  processed += 1;
+                  subject.next({
+                    status: 'backfilling_lens_aperture',
+                    processed,
+                    total: sourcePhotos.length,
+                    currentFile: photo.relativePath,
+                  });
+                }
+              }),
+            ),
+          );
+          subject.next({
+            status: 'idle',
+            processed: sourcePhotos.length,
+            total: sourcePhotos.length,
+          });
+        } catch (err) {
+          const message = (err as Error).message;
+          this.logger.warn(
+            `Lens/aperture backfill failed for source ${currentSourceId}: ${message}`,
+          );
+          subject.next({
+            status: 'error',
+            processed,
+            total: sourcePhotos.length,
+            error: message,
+          });
+        } finally {
+          await provider.disconnect().catch(() => undefined);
+          subject.complete();
+          this.progressSubjects.delete(currentSourceId);
+          this.activeLensApertureBackfills.delete(currentSourceId);
+        }
+      }
+      if (reservedSourceId !== undefined && !bySource.has(reservedSourceId)) {
+        const subject = this.subjectFor(reservedSourceId);
+        subject.next({ status: 'idle', processed: 0, total: 0 });
+        subject.complete();
+        this.progressSubjects.delete(reservedSourceId);
+        this.activeLensApertureBackfills.delete(reservedSourceId);
+      }
+      this.logger.log(
+        `Lens/aperture backfill completed for ${photos.length} photo(s)`,
+      );
+    } catch (err) {
+      if (reservedSourceId !== undefined) {
+        const subject = this.subjectFor(reservedSourceId);
+        const message = (err as Error).message;
+        subject.next({
+          status: 'error',
+          processed: 0,
+          total: 0,
+          error: message,
+        });
+        subject.complete();
+        this.progressSubjects.delete(reservedSourceId);
+        this.activeLensApertureBackfills.delete(reservedSourceId);
       }
       throw err;
     }

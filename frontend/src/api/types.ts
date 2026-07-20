@@ -18,6 +18,8 @@ export interface Source {
   photoCount: number;
   photosNeedingLocationBackfill: number;
   locationBackfillActive: boolean;
+  photosNeedingLensApertureBackfill: number;
+  lensApertureBackfillActive: boolean;
   shownCount: number;
 }
 
@@ -56,7 +58,12 @@ export interface BrowseSmbInput {
 }
 
 export interface ScanProgressEvent {
-  status: 'scanning' | 'backfilling_locations' | 'idle' | 'error';
+  status:
+    | 'scanning'
+    | 'backfilling_locations'
+    | 'backfilling_lens_aperture'
+    | 'idle'
+    | 'error';
   processed: number;
   total: number;
   currentFile?: string;
@@ -317,6 +324,8 @@ export interface SlidePhoto {
   capturedAt: string | null;
   locationCity: string | null;
   locationCountry: string | null;
+  lens: string | null;
+  aperture: number | null;
 }
 
 export type SlideType = 'single' | 'triple' | 'collage' | 'empty';
@@ -395,5 +404,6 @@ export interface Statistics {
   oldestCapturedAt: string | null;
   newestCapturedAt: string | null;
   photosNeedingLocationBackfill: number;
+  photosNeedingLensApertureBackfill: number;
   sources: SourceStatistic[];
 }

@@ -847,6 +847,8 @@ function toSlidePhoto(photo: Photo): SlidePhoto {
     capturedAt: photo.capturedAt ? photo.capturedAt.toISOString() : null,
     locationCity: photo.locationCity,
     locationCountry: photo.locationCountry,
+    lens: photo.lens,
+    aperture: photo.aperture,
   };
 }
 

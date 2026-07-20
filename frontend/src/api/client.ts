@@ -49,6 +49,10 @@ export const api = {
       request<void>(`/sources/${id}/rescan`, { method: 'POST' }),
     backfillLocations: (id: number) =>
       request<void>(`/sources/${id}/backfill-locations`, { method: 'POST' }),
+    backfillLensAperture: (id: number) =>
+      request<void>(`/sources/${id}/backfill-lens-aperture`, {
+        method: 'POST',
+      }),
     pause: (id: number) =>
       request<void>(`/sources/${id}/pause`, { method: 'POST' }),
     resume: (id: number) =>
@@ -81,6 +85,8 @@ export const api = {
     statistics: () => request<Statistics>('/photos/statistics'),
     backfillLocations: () =>
       request<void>('/photos/backfill-locations', { method: 'POST' }),
+    backfillLensAperture: () =>
+      request<void>('/photos/backfill-lens-aperture', { method: 'POST' }),
     actions: (id: number) => request<PhotoActionState>(`/photos/${id}/actions`),
     favorite: (id: number) =>
       request<PhotoActionState>(`/photos/${id}/favorite`, { method: 'POST' }),

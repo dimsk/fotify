@@ -41,6 +41,12 @@ export class SourcesService {
         locationBackfillActive: this.scanService.isLocationBackfillActive(
           source.id,
         ),
+        photosNeedingLensApertureBackfill: await this.photoRepo.countBy({
+          sourceId: source.id,
+          lensApertureScanned: false,
+        }),
+        lensApertureBackfillActive:
+          this.scanService.isLensApertureBackfillActive(source.id),
         shownCount: await this.photoRepo
           .createQueryBuilder('photo')
           .where('photo.sourceId = :id', { id: source.id })
@@ -102,6 +108,14 @@ export class SourcesService {
       throw new NotFoundException('Source not found');
     }
     this.scanService.triggerLocationBackfill(id);
+  }
+
+  async backfillLensAperture(id: number): Promise<void> {
+    const source = await this.sourceRepo.findOneBy({ id });
+    if (!source) {
+      throw new NotFoundException('Source not found');
+    }
+    this.scanService.triggerLensApertureBackfill(id);
   }
 
   /**

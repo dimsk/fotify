@@ -25,6 +25,7 @@ export interface Statistics {
   oldestCapturedAt: string | null;
   newestCapturedAt: string | null;
   photosNeedingLocationBackfill: number;
+  photosNeedingLensApertureBackfill: number;
   sources: SourceStatistic[];
 }
 
@@ -38,6 +39,7 @@ interface PhotoStatisticRow {
   newest: string | null;
   needingLocationBackfill: number | string | null;
   withGpsCoordinates: number | string | null;
+  needingLensApertureBackfill: number | string | null;
 }
 
 interface SourceStatisticRow {
@@ -85,6 +87,9 @@ export class StatisticsService {
       photosNeedingLocationBackfill: toNumber(
         photoStats.needingLocationBackfill,
       ),
+      photosNeedingLensApertureBackfill: toNumber(
+        photoStats.needingLensApertureBackfill,
+      ),
       sources: sourceStats,
     };
   }
@@ -119,6 +124,10 @@ export class StatisticsService {
         'SUM(CASE WHEN photo.gpsLatitude IS NOT NULL AND photo.gpsLongitude IS NOT NULL THEN 1 ELSE 0 END)',
         'withGpsCoordinates',
       )
+      .addSelect(
+        'SUM(CASE WHEN photo.lensApertureScanned = 0 THEN 1 ELSE 0 END)',
+        'needingLensApertureBackfill',
+      )
       .getRawOne<PhotoStatisticRow>();
 
     return (
@@ -132,6 +141,7 @@ export class StatisticsService {
         newest: null,
         needingLocationBackfill: 0,
         withGpsCoordinates: 0,
+        needingLensApertureBackfill: 0,
       }
     );
   }

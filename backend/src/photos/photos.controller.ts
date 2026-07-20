@@ -76,4 +76,11 @@ export class PhotosController {
   backfillLocations() {
     this.scanService.triggerLocationBackfill();
   }
+
+  /** Fire-and-forget: re-reads every photo imported before the lens/aperture feature existed to fill in lens model/aperture. */
+  @Post('backfill-lens-aperture')
+  @HttpCode(202)
+  backfillLensAperture() {
+    this.scanService.triggerLensApertureBackfill();
+  }
 }
