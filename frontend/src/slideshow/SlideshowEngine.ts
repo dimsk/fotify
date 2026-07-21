@@ -219,7 +219,9 @@ function applyCollageLayout(
       img.src = photo.url;
     }
     if (caption)
-      caption.textContent = template.showCaptions ? formatCaption(photo) : '';
+      caption.textContent = template.showCaptions
+        ? formatCaption(photo, false)
+        : '';
   });
 }
 

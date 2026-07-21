@@ -37,16 +37,27 @@ export function formatAperture(aperture: number | null | undefined): string | nu
  *
  * The lens/aperture (if present in EXIF) is placed on the same line as the
  * date, to its left, separated by a small circle ("•").
+ *
+ * `includeDateLine` is false for collage cells — the lens/aperture/date line
+ * is only meaningful for a single, fully-visible photo, not a collage cell
+ * that's often cropped/rotated/overlapping others; only the location line
+ * (if any) still shows there. Single and triple slides always pass the
+ * default (true).
  */
-export function formatCaption(photo: {
-  capturedAt: string | null;
-  locationCity?: string | null;
-  locationCountry?: string | null;
-  lens?: string | null;
-  aperture?: number | null;
-}): string {
-  const date = formatCapturedAt(photo.capturedAt) ?? '';
+export function formatCaption(
+  photo: {
+    capturedAt: string | null;
+    locationCity?: string | null;
+    locationCountry?: string | null;
+    lens?: string | null;
+    aperture?: number | null;
+  },
+  includeDateLine = true,
+): string {
   const location = [photo.locationCity, photo.locationCountry].filter(Boolean).join(', ');
+  if (!includeDateLine) return location;
+
+  const date = formatCapturedAt(photo.capturedAt) ?? '';
   const lensInfo = [photo.lens, formatAperture(photo.aperture)].filter(Boolean).join(' ');
   const dateLine = [lensInfo, date].filter(Boolean).join(' • ');
   if (!location) return dateLine;
