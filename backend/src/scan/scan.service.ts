@@ -284,6 +284,16 @@ export class ScanService implements OnApplicationBootstrap {
       const files = await walkMediaFiles(provider, mediaExtensions);
 
       const existingPhotos = await this.photoRepo.find({ where: { sourceId } });
+      // Rows whose extension is no longer among the enabled formats are
+      // removed up front — a deselected format should drop its files from
+      // the library on the next scan, not keep them around forever.
+      const formatPruned = existingPhotos.filter(
+        (photo) =>
+          !mediaExtensions.has(extname(photo.relativePath).toLowerCase()),
+      );
+      const keptPhotos = existingPhotos.filter((photo) =>
+        mediaExtensions.has(extname(photo.relativePath).toLowerCase()),
+      );
       // Keyed by relativePath (a file's stable identity within a source) so
       // we can tell "unchanged", "content changed at this path", and "path
       // no longer exists" apart. Entries get claimed (deleted from this map)
@@ -291,9 +301,9 @@ export class ScanService implements OnApplicationBootstrap {
       // afterwards is stale — its source file was deleted or moved since
       // the last scan — and gets pruned along with its cache file.
       const existingByPath = new Map(
-        existingPhotos.map((p) => [p.relativePath, p]),
+        keptPhotos.map((p) => [p.relativePath, p]),
       );
-      const seenHashes = new Set(existingPhotos.map((p) => p.fileHash));
+      const seenHashes = new Set(keptPhotos.map((p) => p.fileHash));
 
       let processed = 0;
       const limit = pLimit(SCAN_CONCURRENCY);
@@ -348,13 +358,18 @@ export class ScanService implements OnApplicationBootstrap {
         ),
       );
 
-      const stalePhotos = [...existingByPath.values()];
+      const stalePhotos = [...existingByPath.values(), ...formatPruned];
       if (stalePhotos.length > 0) {
         await this.photoRepo.remove(stalePhotos);
         notifyPhotosDeleted(stalePhotos.map((p) => p.id));
         await Promise.all(
           stalePhotos.map((p) => this.cacheStorage.delete(p.cachedDisplayPath)),
         );
+        if (formatPruned.length > 0) {
+          this.logger.log(
+            `Scan of source ${sourceId}: removed ${formatPruned.length} row(s) with deselected format(s)`,
+          );
+        }
       }
 
       source.status = 'idle';
