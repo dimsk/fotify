@@ -807,6 +807,17 @@ export class SlideshowEngine {
     }
 
     if (shouldRevealCollage) backLayer.container.style.visibility = 'hidden';
+    // Start the incoming video *before* the transition so it is already
+    // playing when the fade reveals it — otherwise the effect crossfades
+    // into a frozen first frame and playback visibly kicks in afterwards.
+    if (
+      state.waitingForPlayback &&
+      !(await playLayerVideos(backLayer, state, () =>
+        this.sendReady(state.slideId),
+      ))
+    ) {
+      return false;
+    }
     pauseLayerVideos(frontLayer);
     try {
       await runTransition(state.effect, {
@@ -828,14 +839,6 @@ export class SlideshowEngine {
     frontLayer.container.style.opacity = '0';
     pauseLayerVideos(frontLayer);
     this.frontIndex = backIndex;
-    if (
-      state.waitingForPlayback &&
-      !(await playLayerVideos(backLayer, state, () =>
-        this.sendReady(state.slideId),
-      ))
-    ) {
-      return false;
-    }
     return true;
   }
 }
