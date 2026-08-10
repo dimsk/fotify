@@ -208,7 +208,22 @@ function applyGridLayout(layer: SlideLayerHandle, state: Renderable): void {
       state.type === 'single' && photo.orientation === 'portrait'
         ? 'contain'
         : 'cover';
+    // 'cover' on a widescreen (16:9) crops landscape photos top+bottom by
+    // default. For narrower aspects (4:3, 3:2) we want that crop centered
+    // explicitly — equal amounts cut from top and bottom — rather than any
+    // default anchor bias, so the subject stays in frame. object-position
+    // does exactly that without touching layout.
+    if (
+      state.type === 'single' &&
+      photo.orientation === 'landscape' &&
+      img.style.objectFit === 'cover'
+    ) {
+      img.style.objectPosition = '50% 50%';
+    } else {
+      img.style.objectPosition = '';
+    }
     video.style.objectFit = img.style.objectFit;
+    video.style.objectPosition = img.style.objectPosition;
     setCellMedia(layer, index, photo);
     if (caption) caption.textContent = formatCaption(photo);
   });
