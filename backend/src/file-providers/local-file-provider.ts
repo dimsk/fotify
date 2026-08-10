@@ -40,8 +40,13 @@ export class LocalFileProvider implements FileProvider {
     return fs.readFile(filePath);
   }
 
-  async createReadStream(relativePath: string) {
-    return createReadStream(this.resolveSafe(relativePath));
+  async createReadStream(relativePath: string, options?: { start?: number; end?: number }) {
+    return createReadStream(this.resolveSafe(relativePath), options);
+  }
+
+  async getFileSize(relativePath: string): Promise<number> {
+    const stat = await fs.stat(this.resolveSafe(relativePath));
+    return stat.size;
   }
 
   private resolveSafe(relativePath: string): string {

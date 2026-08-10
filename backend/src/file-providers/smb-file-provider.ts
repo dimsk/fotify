@@ -1,5 +1,13 @@
 import { Client } from 'node-smb2';
+// Internal class, not re-exported by the package index — needed for
+// positioned reads (see createReadStream below).
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const SmbFile = require('node-smb2/dist/client/File').default;
+import { Readable } from 'stream';
 import { FileEntry, FileProvider } from './file-provider.interface';
+
+/** Must match node-smb2's internal maxReadChunkLength (File.js). */
+const SMB_READ_CHUNK_LENGTH = 0x00010000;
 
 export interface SmbConnectionOptions {
   host: string;
@@ -72,9 +80,59 @@ export class SmbFileProvider implements FileProvider {
     return this.requireTree().readFile(path);
   }
 
-  async createReadStream(relativePath: string) {
+  async createReadStream(
+    relativePath: string,
+    options?: { start?: number; end?: number },
+  ) {
     const path = joinSmbPath(this.options.rootPath ?? '', relativePath);
-    return this.requireTree().createFileReadStream(path);
+    if (!options || (options.start === undefined && options.end === undefined)) {
+      return this.requireTree().createFileReadStream(path);
+    }
+    // node-smb2's own stream always reads from byte 0; for ranged requests
+    // (browser video seeks) open the file ourselves and issue positioned
+    // reads via the internal readChunk(offset) API, so a seek to minute 4
+    // of a clip doesn't have to transfer and discard the first 4 minutes.
+    const tree = this.requireTree() as any;
+    const file = new SmbFile(tree);
+    tree.registerFile(file);
+    await file.open(path);
+    const fileSize = Number(file.fileSize);
+    const start = Math.min(options.start ?? 0, fileSize);
+    const endExclusive = Math.min((options.end ?? fileSize - 1) + 1, fileSize);
+    const stream = Readable.from(
+      (async function* () {
+        let offset = start;
+        let index = Math.floor(offset / SMB_READ_CHUNK_LENGTH);
+        while (offset < endExclusive) {
+          const chunk: Buffer = await file.readChunk(index, offset);
+          yield chunk.subarray(0, Math.min(chunk.length, endExclusive - offset));
+          offset += chunk.length;
+          index += 1;
+        }
+      })(),
+    );
+    stream.once('close', async () => {
+      await file.close();
+    });
+    return stream;
+  }
+
+  async getFileSize(relativePath: string): Promise<number> {
+    // node-smb2 exposes no standalone stat; resolve the containing directory
+    // and match the entry — one extra roundtrip, but only once per direct
+    // video stream (range requests afterwards reuse the browser's cache).
+    const normalized = relativePath.replace(/^\/+|\/+$/g, '');
+    const lastSlash = normalized.lastIndexOf('/');
+    const dir = lastSlash >= 0 ? normalized.slice(0, lastSlash) : '';
+    const name = lastSlash >= 0 ? normalized.slice(lastSlash + 1) : normalized;
+    const entries = await this.listDir(dir);
+    const entry = entries.find(
+      (candidate) => !candidate.isDirectory && candidate.name === name,
+    );
+    if (!entry || entry.size === null) {
+      throw new Error(`Could not determine size of ${relativePath}`);
+    }
+    return entry.size;
   }
 
   private requireTree() {

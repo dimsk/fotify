@@ -514,7 +514,17 @@ export class SlideshowStateService implements OnApplicationBootstrap {
         videoSegmentDurationMs = null;
       }
       let videoPreparationFailed = false;
-      if (plan.type === 'single' && plan.photos[0]?.mediaType === 'video') {
+      const compatibilityMode =
+        settings?.videoCompatibilityMode ??
+        DEFAULT_SETTINGS.videoCompatibilityMode!;
+      if (
+        compatibilityMode === 'normalize' &&
+        plan.type === 'single' &&
+        plan.photos[0]?.mediaType === 'video'
+      ) {
+        // Direct-play modes stream straight from the source (see
+        // MediaController.streamVideoFromSource) — there is no cache file to
+        // prepare, so the advance must not block on ensureCached.
         try {
           await this.videoCacheService.ensureCached(plan.photos[0]);
         } catch (error) {
@@ -712,14 +722,27 @@ export class SlideshowStateService implements OnApplicationBootstrap {
     for (const photo of plan.photos) {
       const work =
         photo.mediaType === 'video'
-          ? this.videoCacheService.ensureCached(photo)
+          ? this.prewarmVideo(photo)
           : this.photoCacheService.ensureCached(photo);
-      work.catch((err) => {
+      work?.catch((err) => {
         this.logger.warn(
           `Prewarm failed for photo ${photo.id}: ${(err as Error).message}`,
         );
       });
     }
+  }
+
+  /**
+   * Direct-play modes stream the original file at request time, so there is
+   * nothing to pre-generate — returns null to skip the warm-up entirely.
+   */
+  private async prewarmVideo(photo: Photo): Promise<unknown> {
+    const settings = await this.settingsRepo.findOneBy({ id: 1 });
+    const mode =
+      settings?.videoCompatibilityMode ??
+      DEFAULT_SETTINGS.videoCompatibilityMode!;
+    if (mode !== 'normalize') return null;
+    return this.videoCacheService.ensureCached(photo);
   }
 
   private markShown(ids: number[]): Promise<void> {

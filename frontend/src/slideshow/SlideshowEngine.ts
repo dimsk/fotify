@@ -359,6 +359,7 @@ async function playLayerVideos(
         withTimeout(video.play(), VIDEO_READY_TIMEOUT_MS),
       ),
     );
+    armSegmentEndGuard(layer, state);
     if (state.waitingForPlayback && videos.length > 0) {
       onPlaying().catch(() => undefined);
     }
@@ -476,6 +477,51 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 
 function pauseLayerVideos(layer: SlideLayerHandle): void {
   for (const video of layer.videos) video.pause();
+}
+
+/**
+ * Caps every video's visible playback at its configured segment. The
+ * slideshow otherwise relies on the next poll to replace the slide — if
+ * that poll is late, a long clip would visibly overrun its slot and a
+ * short clip (loop=true) would repeat indefinitely. Long clips freeze via
+ * a timeupdate check at videoStartOffsetMs + imageDurationMs. Short clips
+ * are allowed exactly one wrap: the 'ended' handler drops the loop flag,
+ * so the first repetition runs to the clip's natural end and holds on its
+ * last frame until the server advances.
+ */
+function armSegmentEndGuard(
+  layer: SlideLayerHandle,
+  state: CurrentSlideResponse,
+): void {
+  for (const { photo, video } of videosForState(layer, state)) {
+    const durationMs = photo.durationMs ?? state.imageDurationMs;
+    const loops = state.imageDurationMs > durationMs;
+    if (loops) {
+      // Short clip: allowed exactly one repetition — the native loop
+      // handles the wrap seamlessly, the 'ended' handler drops the flag so
+      // the second pass runs to its natural end and freezes there until the
+      // server advances, instead of looping forever when a poll is late.
+      video.addEventListener(
+        'ended',
+        () => {
+          video.loop = false;
+          video.play().catch(() => undefined);
+        },
+        { once: true },
+      );
+      continue;
+    }
+    // Long clip: freeze exactly at the end of the configured segment.
+    const segmentEndSeconds =
+      (state.videoStartOffsetMs + state.imageDurationMs) / 1000;
+    const onTimeUpdate = () => {
+      if (video.currentTime >= segmentEndSeconds - 0.05) {
+        video.removeEventListener('timeupdate', onTimeUpdate);
+        video.pause();
+      }
+    };
+    video.addEventListener('timeupdate', onTimeUpdate);
+  }
 }
 
 /**
