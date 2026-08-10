@@ -96,6 +96,8 @@ export type GrainEffect = 'none' | 'light' | 'strong';
 export type DateOverlayMode = 'always' | 'sometimes';
 export type WeatherOverlayMode = 'always' | 'sometimes';
 export type Language = 'en' | 'de';
+
+export type AutoRescanFrequency = 'daily' | 'weekly';
 export type VideoCompatibilityMode =
   | 'direct-mp4'
   | 'direct-common'
@@ -169,6 +171,12 @@ export interface Settings {
   weatherLongitude: number | null;
   weatherTimezone: string | null;
   autoRescanEnabled: boolean;
+  autoRescanTime: string;
+  autoRescanFrequency: AutoRescanFrequency;
+  autoRescanWeekday: number;
+  lastQuickScanAt: string | null;
+  lastQuickScanAdded: number | null;
+  lastQuickScanFiles: string | null;
   collageEnabled: boolean;
   collageChance: number;
   collageTimeWindowMinutes: number;
@@ -203,6 +211,9 @@ export interface UpdateSettingsInput {
   dateOverlayEnabled?: boolean;
   dateOverlayMode?: DateOverlayMode;
   autoRescanEnabled?: boolean;
+  autoRescanTime?: string;
+  autoRescanFrequency?: AutoRescanFrequency;
+  autoRescanWeekday?: number;
   collageEnabled?: boolean;
   collageChance?: number;
   collageTimeWindowMinutes?: number;

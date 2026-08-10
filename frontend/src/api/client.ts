@@ -74,6 +74,10 @@ export const api = {
         body: JSON.stringify(input),
       }),
     scanProgressUrl: (id: number) => `/sources/${id}/scan-progress`,
+    quickScanAll: () =>
+      request<{ added: number; files: string[] }>('/sources/quick-scan-all', {
+        method: 'POST',
+      }),
   },
   photos: {
     currentSlide: () =>

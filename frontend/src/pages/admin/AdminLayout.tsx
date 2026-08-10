@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3,
   Calendar as CalendarIcon,
+  CalendarClock,
   Clock3,
   CloudSun,
   FolderOpen,
@@ -38,6 +39,13 @@ export function AdminLayout() {
           <Tv size={22} />
           <Title order={4}>{t('nav.adminTitle')}</Title>
         </Group>
+        <NavLink
+          component={Link}
+          to="/admin/general"
+          label={t('nav.general')}
+          leftSection={<SettingsIcon size={18} />}
+          active={location.pathname.startsWith('/admin/general')}
+        />
         <Indicator
           disabled={!hasSourceError}
           color="red"
@@ -56,17 +64,10 @@ export function AdminLayout() {
         </Indicator>
         <NavLink
           component={Link}
-          to="/admin/video"
-          label={t('nav.video')}
-          leftSection={<Film size={18} />}
-          active={location.pathname.startsWith('/admin/video')}
-        />
-        <NavLink
-          component={Link}
-          to="/admin/general"
-          label={t('nav.general')}
-          leftSection={<SettingsIcon size={18} />}
-          active={location.pathname.startsWith('/admin/general')}
+          to="/admin/scheduler"
+          label={t('nav.scheduler')}
+          leftSection={<CalendarClock size={18} />}
+          active={location.pathname.startsWith('/admin/scheduler')}
         />
         <NavLink
           component={Link}
@@ -74,6 +75,13 @@ export function AdminLayout() {
           label={t('nav.slideshowSettings')}
           leftSection={<SlidersHorizontal size={18} />}
           active={location.pathname.startsWith('/admin/settings')}
+        />
+        <NavLink
+          component={Link}
+          to="/admin/video"
+          label={t('nav.video')}
+          leftSection={<Film size={18} />}
+          active={location.pathname.startsWith('/admin/video')}
         />
         <NavLink
           component={Link}

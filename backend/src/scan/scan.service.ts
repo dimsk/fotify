@@ -108,6 +108,132 @@ export class ScanService implements OnApplicationBootstrap {
     });
   }
 
+  /** Fire-and-forget: caller does not await scan completion. */
+  triggerQuickScan(sourceId: number): void {
+    this.quickScanSource(sourceId).catch((err) => {
+      this.logger.error(`Quick scan of source ${sourceId} failed`, err);
+    });
+  }
+
+  /**
+   * Lightweight discovery pass: walks the source and imports only files
+   * whose relative path is not yet in the database. No hash, timestamp, or
+   * size comparison — known paths are skipped by name alone, and deleted
+   * files are NOT pruned (that remains the full scan's job), so this stays
+   * cheap enough to run on a schedule even for large libraries. Returns the
+   * paths of the newly imported files.
+   */
+  async quickScanSource(sourceId: number): Promise<string[]> {
+    if (this.activeScans.has(sourceId)) {
+      return [];
+    }
+    this.activeScans.add(sourceId);
+
+    const source = await this.sourceRepo.findOneBy({ id: sourceId });
+    if (!source) {
+      this.activeScans.delete(sourceId);
+      return [];
+    }
+
+    const subject = this.subjectFor(sourceId);
+    source.status = 'scanning';
+    source.lastScanError = null;
+    await this.sourceRepo.save(source);
+    subject.next({ status: 'scanning', processed: 0, total: 0 });
+
+    const provider = this.fileProviderFactory.forSource(source);
+
+    try {
+      await provider.connect();
+      const mediaExtensions = new Set([
+        ...IMAGE_EXTENSIONS,
+        ...COMMON_VIDEO_EXTENSIONS,
+      ]);
+      const files = await walkMediaFiles(provider, mediaExtensions);
+
+      const existingPhotos = await this.photoRepo.find({
+        where: { sourceId },
+        select: ['id', 'relativePath', 'fileHash'],
+      });
+      const existingPaths = new Set(existingPhotos.map((p) => p.relativePath));
+      const seenHashes = new Set(existingPhotos.map((p) => p.fileHash));
+      const newFiles = files.filter(
+        (file) => !existingPaths.has(file.relativePath),
+      );
+
+      let processed = 0;
+      const addedFiles: string[] = [];
+      const limit = pLimit(SCAN_CONCURRENCY);
+      const videoLimit = pLimit(VIDEO_SCAN_CONCURRENCY);
+      subject.next({
+        status: 'scanning',
+        processed: 0,
+        total: newFiles.length,
+      });
+
+      await Promise.all(
+        newFiles.map((file) =>
+          limit(async () => {
+            try {
+              const extension = extname(file.relativePath).toLowerCase();
+              // Empty maps: nothing to claim or prune — every file here is
+              // known-new by path, so the importers only ever hit their
+              // "create" branch (or the moved-file duplicate check).
+              const noExisting = new Map<string, Photo>();
+              if (COMMON_VIDEO_EXTENSIONS.has(extension)) {
+                await videoLimit(() =>
+                  this.importVideo(provider, source, file, noExisting, seenHashes),
+                );
+              } else {
+                await this.importImage(
+                  provider,
+                  source,
+                  file,
+                  noExisting,
+                  seenHashes,
+                );
+              }
+              addedFiles.push(file.relativePath);
+            } catch (err) {
+              this.logger.warn(
+                `Failed to import ${file.relativePath}: ${(err as Error).message}`,
+              );
+            } finally {
+              processed += 1;
+              subject.next({
+                status: 'scanning',
+                processed,
+                total: newFiles.length,
+                currentFile: file.relativePath,
+              });
+            }
+          }),
+        ),
+      );
+
+      source.status = 'idle';
+      await this.sourceRepo.save(source);
+      subject.next({
+        status: 'idle',
+        processed: newFiles.length,
+        total: newFiles.length,
+      });
+      return addedFiles;
+    } catch (err) {
+      const message = (err as Error).message;
+      source.status = 'error';
+      source.lastScanError = message;
+      await this.sourceRepo.save(source);
+      subject.next({ status: 'error', processed: 0, total: 0, error: message });
+      return [];
+    } finally {
+      await provider.disconnect().catch(() => undefined);
+      subject.complete();
+      this.progressSubjects.delete(sourceId);
+      this.activeScans.delete(sourceId);
+    }
+  }
+
   async scanSource(sourceId: number): Promise<void> {
     if (this.activeScans.has(sourceId)) {
       return;

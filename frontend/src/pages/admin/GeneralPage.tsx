@@ -76,7 +76,6 @@ export function GeneralPage() {
   const [nightModeEnabled, setNightModeEnabled] = useState(false);
   const [nightModeStart, setNightModeStart] = useState('22:00');
   const [nightModeEnd, setNightModeEnd] = useState('07:00');
-  const [autoRescanEnabled, setAutoRescanEnabled] = useState(false);
 
   useEffect(() => {
     if (!settings) return;
@@ -87,7 +86,6 @@ export function GeneralPage() {
     setNightModeEnabled(settings.nightModeEnabled);
     setNightModeStart(settings.nightModeStart);
     setNightModeEnd(settings.nightModeEnd);
-    setAutoRescanEnabled(settings.autoRescanEnabled);
   }, [settings]);
 
   const updateMutation = useMutation({
@@ -107,7 +105,6 @@ export function GeneralPage() {
       nightModeEnabled,
       nightModeStart,
       nightModeEnd,
-      autoRescanEnabled,
     });
   }
 
@@ -184,13 +181,6 @@ export function GeneralPage() {
             disabled={!nightModeEnabled}
           />
         </Group>
-
-        <Switch
-          label={t('settings.autoRescan')}
-          description={t('settings.autoRescanDescription')}
-          checked={autoRescanEnabled}
-          onChange={(e) => setAutoRescanEnabled(e.currentTarget.checked)}
-        />
       </Section>
 
       <Button

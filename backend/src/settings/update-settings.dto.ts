@@ -12,6 +12,7 @@ import {
   Min,
 } from 'class-validator';
 import {
+  AutoRescanFrequency,
   CollageLayoutSelection,
   DateOverlayMode,
   GrainEffect,
@@ -53,6 +54,7 @@ const CAPTION_POSITIONS: PhotoCaptionPosition[] = [
 ];
 const GRAIN_EFFECTS: GrainEffect[] = ['none', 'light', 'strong'];
 const DATE_OVERLAY_MODES: DateOverlayMode[] = ['always', 'sometimes'];
+const AUTO_RESCAN_FREQUENCIES: AutoRescanFrequency[] = ['daily', 'weekly'];
 const LANGUAGES: Language[] = ['en', 'de'];
 const VIDEO_COMPATIBILITY_MODES: VideoCompatibilityMode[] = [
   'direct-mp4',
@@ -199,6 +201,20 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsBoolean()
   autoRescanEnabled?: boolean;
+
+  @IsOptional()
+  @Matches(TIME_HHMM)
+  autoRescanTime?: string;
+
+  @IsOptional()
+  @IsIn(AUTO_RESCAN_FREQUENCIES)
+  autoRescanFrequency?: AutoRescanFrequency;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(7)
+  autoRescanWeekday?: number;
 
   @IsOptional()
   @IsBoolean()

@@ -34,6 +34,7 @@
     "weather": "Weather",
     "calendar": "Calendar",
     "statistics": "Statistics",
+    "scheduler": "Scheduler",
     "slideshow": "Go to slideshow"
   },
   "settings": {
@@ -304,6 +305,36 @@
     "cacheSize": "Cache size",
     "files": "{{count}} files",
     "bySource": "By source"
+  },
+  "scheduler": {
+    "title": "Scheduler",
+    "quickScan": "Scheduled quick scan",
+    "quickScanDescription": "Automatically discovers new files in all non-paused sources at the configured schedule. Only filenames are compared — no hashes or timestamps — so it stays fast even for large libraries. Deleted files are only removed by a full manual rescan.",
+    "enabled": "Enable scheduled scan",
+    "frequency": "Frequency",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "weekday": "Weekday",
+    "weekdays": {
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday",
+      "7": "Sunday"
+    },
+    "hour": "Hour",
+    "minute": "Minute",
+    "runNow": "Scan now",
+    "runNowDescription": "Runs the same quick scan immediately for all non-paused sources.",
+    "scanComplete": "Quick scan finished: {{count}} new file(s) added",
+    "scanFailed": "Quick scan failed",
+    "lastScan": "Last quick scan",
+    "lastScanAdded": "Files added by last scan",
+    "never": "Never",
+    "lastAddedTitle": "Files added by last scan",
+    "lastAddedEmpty": "No files were added by the most recent quick scan."
   },
   "slideshow": {
     "noPhotos": "No pictures or videos configured. Please add directories in the <admin>admin area</admin>.",

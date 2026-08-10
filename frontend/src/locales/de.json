@@ -34,6 +34,7 @@
     "weather": "Wetter",
     "calendar": "Kalender",
     "statistics": "Statistik",
+    "scheduler": "Zeitplan",
     "slideshow": "Zur Diashow"
   },
   "settings": {
@@ -304,6 +305,36 @@
     "cacheSize": "Cache-Größe",
     "files": "{{count}} Dateien",
     "bySource": "Nach Quelle"
+  },
+  "scheduler": {
+    "title": "Zeitplan",
+    "quickScan": "Geplanter Schnell-Scan",
+    "quickScanDescription": "Erkennt neue Dateien in allen nicht pausierten Quellen automatisch zum eingestellten Zeitplan. Es werden nur Dateinamen verglichen — keine Hashes oder Zeitstempel — daher bleibt der Scan auch bei großen Bibliotheken schnell. Gelöschte Dateien entfernt nur ein vollständiger manueller Rescan.",
+    "enabled": "Geplanten Scan aktivieren",
+    "frequency": "Häufigkeit",
+    "daily": "Täglich",
+    "weekly": "Wöchentlich",
+    "weekday": "Wochentag",
+    "weekdays": {
+      "1": "Montag",
+      "2": "Dienstag",
+      "3": "Mittwoch",
+      "4": "Donnerstag",
+      "5": "Freitag",
+      "6": "Samstag",
+      "7": "Sonntag"
+    },
+    "hour": "Stunde",
+    "minute": "Minute",
+    "runNow": "Jetzt scannen",
+    "runNowDescription": "Führt denselben Schnell-Scan sofort für alle nicht pausierten Quellen aus.",
+    "scanComplete": "Schnell-Scan abgeschlossen: {{count}} neue Datei(en) hinzugefügt",
+    "scanFailed": "Schnell-Scan fehlgeschlagen",
+    "lastScan": "Letzter Schnell-Scan",
+    "lastScanAdded": "Beim letzten Scan hinzugefügt",
+    "never": "Nie",
+    "lastAddedTitle": "Zuletzt hinzugefügte Dateien",
+    "lastAddedEmpty": "Beim letzten Schnell-Scan wurden keine Dateien hinzugefügt."
   },
   "slideshow": {
     "noPhotos": "Keine Bilder oder Videos konfiguriert. Bitte im <admin>Admin-Bereich</admin> Verzeichnisse hinzufügen.",

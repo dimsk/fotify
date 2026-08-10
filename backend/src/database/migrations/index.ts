@@ -34,6 +34,7 @@ import { PhotoLensApertureScanned1783437000000 } from './1783437000000-PhotoLens
 import { VideoMedia1783438000000 } from './1783438000000-VideoMedia';
 import { RandomVideoSegment1783439000000 } from './1783439000000-RandomVideoSegment';
 import { VideoSegmentDuration1783440000000 } from './1783440000000-VideoSegmentDuration';
+import { SchedulerQuickScan1783441000000 } from './1783441000000-SchedulerQuickScan';
 
 export const migrations = [
   InitialSchema1783265469029,
@@ -72,4 +73,5 @@ export const migrations = [
   VideoMedia1783438000000,
   RandomVideoSegment1783439000000,
   VideoSegmentDuration1783440000000,
+  SchedulerQuickScan1783441000000,
 ];

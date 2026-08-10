@@ -14,6 +14,7 @@ import { CalendarPage } from './pages/admin/CalendarPage';
 import { DatePage } from './pages/admin/DatePage';
 import { WeatherPage } from './pages/admin/WeatherPage';
 import { VideoPage } from './pages/admin/VideoPage';
+import { SchedulerPage } from './pages/admin/SchedulerPage';
 
 export function App() {
   return (
@@ -23,7 +24,7 @@ export function App() {
         <Route path="/" element={<SlideshowPage />} />
         <Route path="/photo/:id" element={<PhotoActionPage />} />
         <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<Navigate to="sources" replace />} />
+          <Route index element={<Navigate to="general" replace />} />
           <Route path="sources" element={<SourcesPage />} />
           <Route path="general" element={<GeneralPage />} />
           <Route path="settings" element={<SettingsPage />} />
@@ -31,6 +32,7 @@ export function App() {
           <Route path="date" element={<DatePage />} />
           <Route path="weather" element={<WeatherPage />} />
           <Route path="calendar" element={<CalendarPage />} />
+          <Route path="scheduler" element={<SchedulerPage />} />
           <Route path="statistics" element={<StatisticsPage />} />
         </Route>
       </Routes>

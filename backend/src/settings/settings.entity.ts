@@ -23,6 +23,7 @@ export type PhotoFrameStyle = 'none' | 'thin' | 'polaroid';
 export type PhotoCaptionPosition = 'bottom-left' | 'bottom-right';
 export type GrainEffect = 'none' | 'light' | 'strong';
 export type DateOverlayMode = 'always' | 'sometimes';
+export type AutoRescanFrequency = 'daily' | 'weekly';
 export type WeatherOverlayMode = 'always' | 'sometimes';
 export type Language = 'en' | 'de';
 export type VideoCompatibilityMode =
@@ -237,9 +238,41 @@ export class Settings {
   @Column({ type: 'text', nullable: true })
   weatherTimezone: string | null;
 
-  /** If true, every non-paused source is rescanned automatically once a day. */
+  /** If true, every non-paused source is quick-scanned automatically once a day at autoRescanTime. */
   @Column({ type: 'boolean', default: false })
   autoRescanEnabled: boolean;
+
+  /**
+   * Local time ("HH:mm", in scheduleTimezone) at which the automatic daily
+   * quick scan runs. The quick scan only adds files whose path is not yet
+   * in the database — no hash or timestamp comparison, so it stays cheap
+   * even for large libraries.
+   */
+  @Column({ type: 'text', default: '04:00' })
+  autoRescanTime: string;
+
+  /** 'daily': scan every day; 'weekly': scan only on autoRescanWeekday. */
+  @Column({ type: 'text', default: 'daily' })
+  autoRescanFrequency: AutoRescanFrequency;
+
+  /** ISO weekday (1 = Monday … 7 = Sunday) used when frequency is 'weekly'. */
+  @Column({ type: 'int', default: 1 })
+  autoRescanWeekday: number;
+
+  /** When the most recent quick scan (scheduled or manual) finished. */
+  @Column({ type: 'datetime', nullable: true })
+  lastQuickScanAt: Date | null;
+
+  /** How many previously-unknown files the most recent quick scan added. */
+  @Column({ type: 'int', nullable: true })
+  lastQuickScanAdded: number | null;
+
+  /**
+   * Paths of the files the most recent quick scan added, JSON-encoded
+   * (only the newest scan's list is kept).
+   */
+  @Column({ type: 'text', nullable: true })
+  lastQuickScanFiles: string | null;
 
   /**
    * If true, some slides are assembled from several photos taken close
