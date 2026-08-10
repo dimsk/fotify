@@ -11,6 +11,7 @@ services:
       - FRONTEND_PORT=${FRONTEND_PORT:-15766}
     volumes:
       - /volume1/photo/:/photo/
+      - /volume6/pn2/:/photo2/
       - /volume2/docker/fotify/:/app/data/
       # Bind-mount a local photo folder here, then add it as a "Local"
       # source in /admin pointing at the container path on the right, e.g.:
