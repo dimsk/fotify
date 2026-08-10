@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs';
+import { createReadStream, promises as fs } from 'fs';
 import { join, resolve, sep } from 'path';
 import { FileEntry, FileProvider } from './file-provider.interface';
 
@@ -20,15 +20,28 @@ export class LocalFileProvider implements FileProvider {
   async listDir(relativePath: string): Promise<FileEntry[]> {
     const dirPath = this.resolveSafe(relativePath);
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
-    return entries.map((entry) => ({
-      name: entry.name,
-      isDirectory: entry.isDirectory(),
-    }));
+    return Promise.all(
+      entries.map(async (entry) => {
+        const stat = entry.isDirectory()
+          ? null
+          : await fs.stat(this.resolveSafe(join(relativePath, entry.name)));
+        return {
+          name: entry.name,
+          isDirectory: entry.isDirectory(),
+          size: stat?.size ?? null,
+          modifiedAt: stat?.mtime ?? null,
+        };
+      }),
+    );
   }
 
   async readFile(relativePath: string): Promise<Buffer> {
     const filePath = this.resolveSafe(relativePath);
     return fs.readFile(filePath);
+  }
+
+  async createReadStream(relativePath: string) {
+    return createReadStream(this.resolveSafe(relativePath));
   }
 
   private resolveSafe(relativePath: string): string {

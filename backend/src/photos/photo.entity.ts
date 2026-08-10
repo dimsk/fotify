@@ -10,6 +10,7 @@ import {
 import { Source } from '../sources/source.entity';
 
 export type PhotoOrientation = 'portrait' | 'landscape' | 'square';
+export type MediaType = 'image' | 'video';
 
 @Index('IDX_photo_source_last_shown', ['sourceId', 'lastShownAt'])
 @Index('IDX_photo_gps_coordinates', ['gpsLatitude', 'gpsLongitude'])
@@ -29,6 +30,11 @@ export class Photo {
   @Column({ type: 'text' })
   relativePath: string;
 
+  /** Legacy entity/table name retained so persisted queue ids remain valid. */
+  @Index('IDX_photo_media_type')
+  @Column({ type: 'text', default: 'image' })
+  mediaType: MediaType;
+
   @Index({ unique: true })
   @Column({ type: 'text' })
   fileHash: string;
@@ -38,6 +44,24 @@ export class Photo {
 
   @Column({ type: 'int' })
   height: number;
+
+  @Column({ type: 'int', nullable: true })
+  durationMs: number | null;
+
+  @Column({ type: 'text', nullable: true })
+  mimeType: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  videoCodec: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  videoContainer: string | null;
+
+  @Column({ type: 'int', nullable: true })
+  sourceFileSize: number | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  sourceModifiedAt: Date | null;
 
   @Index()
   @Column({ type: 'text' })
@@ -104,6 +128,10 @@ export class Photo {
    */
   @Column({ type: 'text', nullable: true })
   cachedDisplayPath: string | null;
+
+  /** Compatibility mode used to create cachedDisplayPath for a video. */
+  @Column({ type: 'text', nullable: true })
+  cachedVideoMode: string | null;
 
   /** When cachedDisplayPath was generated — drives cache eviction timing. */
   @Index()

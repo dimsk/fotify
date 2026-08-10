@@ -58,13 +58,23 @@ export class SmbFileProvider implements FileProvider {
     const path = joinSmbPath(this.options.rootPath ?? '', relativePath);
     const entries = await this.requireTree().readDirectory(path);
     return entries
-      .map((entry) => ({ name: normalizeEntryName(entry.filename), isDirectory: entry.type === 'Directory' }))
+      .map((entry) => ({
+        name: normalizeEntryName(entry.filename),
+        isDirectory: entry.type === 'Directory',
+        size: entry.type === 'Directory' ? null : Number(entry.fileSize),
+        modifiedAt: entry.type === 'Directory' ? null : entry.lastWriteTime,
+      }))
       .filter((entry) => entry.name !== '.' && entry.name !== '..' && entry.name.length > 0);
   }
 
   async readFile(relativePath: string): Promise<Buffer> {
     const path = joinSmbPath(this.options.rootPath ?? '', relativePath);
     return this.requireTree().readFile(path);
+  }
+
+  async createReadStream(relativePath: string) {
+    const path = joinSmbPath(this.options.rootPath ?? '', relativePath);
+    return this.requireTree().createFileReadStream(path);
   }
 
   private requireTree() {

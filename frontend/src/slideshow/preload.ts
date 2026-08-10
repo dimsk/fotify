@@ -1,6 +1,4 @@
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+import type { SlidePhoto } from '../api/types';
 
 async function preloadImage(url: string): Promise<boolean> {
   const img = new Image();
@@ -22,6 +20,30 @@ async function preloadImage(url: string): Promise<boolean> {
   }
 }
 
+async function preloadVideo(url: string, timeoutMs: number): Promise<boolean> {
+  const video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = 'auto';
+  return new Promise<boolean>((resolve) => {
+    const timeout = setTimeout(() => finish(), timeoutMs);
+    const finish = () => {
+      clearTimeout(timeout);
+      video.onloadedmetadata = null;
+      video.onerror = null;
+      video.removeAttribute('src');
+      video.load();
+      // Browser preload is only a hint. The attached video element performs
+      // the authoritative readiness/error check when the slide is shown.
+      resolve(true);
+    };
+    video.onloadedmetadata = finish;
+    video.onerror = finish;
+    video.src = url;
+    video.load();
+  });
+}
+
 /**
  * Preloads and fully decodes every url, bounded by timeoutMs so a slow or
  * stalled network never blocks the slideshow indefinitely. Returns whether
@@ -29,9 +51,21 @@ async function preloadImage(url: string): Promise<boolean> {
  * an outright failure (retry later) rather than rendering a possibly-broken
  * image, since we never want to show one mid-slideshow.
  */
-export async function preloadAll(urls: string[], timeoutMs: number): Promise<boolean[]> {
-  return Promise.race([
-    Promise.all(urls.map((url) => preloadImage(url))),
-    sleep(timeoutMs).then(() => urls.map(() => false)),
-  ]);
+export async function preloadAll(
+  media: Array<Pick<SlidePhoto, 'url' | 'mediaType'>>,
+  timeoutMs: number,
+): Promise<boolean[]> {
+  return Promise.all(
+    media.map((item) => {
+      if (item.mediaType === 'video') {
+        return preloadVideo(item.url, timeoutMs);
+      }
+      return Promise.race([
+        preloadImage(item.url),
+        new Promise<boolean>((resolve) =>
+          setTimeout(() => resolve(false), timeoutMs),
+        ),
+      ]);
+    }),
+  );
 }

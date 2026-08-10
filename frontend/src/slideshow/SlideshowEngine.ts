@@ -21,6 +21,7 @@ const FIRST_SLIDE_PRELOAD_TIMEOUT_MS = 4000;
 const MIN_TRANSITION_PRELOAD_MS = 1000;
 const RETRY_AFTER_ERROR_MS = 2000;
 const CLIENT_HEARTBEAT_INTERVAL_MS = 15_000;
+const VIDEO_READY_TIMEOUT_MS = 120_000;
 
 function createClientId(): string {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -145,6 +146,44 @@ function revealCollageCells(
   cells.forEach((cell, i) => animateCollageEntrance(cell, order[i]));
 }
 
+function clearVideo(video: HTMLVideoElement): void {
+  video.pause();
+  video.removeAttribute('src');
+  video.load();
+  video.style.display = 'none';
+  video.loop = false;
+}
+
+function setCellMedia(
+  layer: SlideLayerHandle,
+  index: number,
+  photo: SlidePhoto | undefined,
+): void {
+  const image = layer.images[index];
+  const video = layer.videos[index];
+  if (!photo) {
+    image.removeAttribute('src');
+    image.style.display = 'none';
+    clearVideo(video);
+    return;
+  }
+  if (photo.mediaType === 'video') {
+    image.removeAttribute('src');
+    image.style.display = 'none';
+    video.style.display = 'block';
+    video.muted = true;
+    video.playsInline = true;
+    if (video.getAttribute('src') !== photo.url) {
+      video.src = photo.url;
+      video.load();
+    }
+    return;
+  }
+  clearVideo(video);
+  image.style.display = 'block';
+  if (image.getAttribute('src') !== photo.url) image.src = photo.url;
+}
+
 /** Renders single/triple/empty slides via the existing uniform CSS Grid. */
 function applyGridLayout(layer: SlideLayerHandle, state: Renderable): void {
   layer.container.style.clipPath = '';
@@ -152,25 +191,25 @@ function applyGridLayout(layer: SlideLayerHandle, state: Renderable): void {
   const shape = gridShapeFor(state.photos.length);
   layer.container.style.gridTemplateColumns = shape.columns;
   layer.container.style.gridTemplateRows = shape.rows;
-  layer.images.forEach((img, index) => {
-    const cell = img.parentElement as HTMLElement | null;
+  layer.cells.forEach((cell, index) => {
+    const img = layer.images[index];
+    const video = layer.videos[index];
     const caption = layer.captions[index] as HTMLElement | undefined;
     const photo = state.photos[index];
-    if (cell) resetCollageStyles(cell);
+    resetCollageStyles(cell);
     if (!photo) {
-      if (cell) cell.style.display = 'none';
-      img.removeAttribute('src');
+      cell.style.display = 'none';
+      setCellMedia(layer, index, undefined);
       if (caption) caption.textContent = '';
       return;
     }
-    if (cell) cell.style.display = 'block';
+    cell.style.display = 'block';
     img.style.objectFit =
       state.type === 'single' && photo.orientation === 'portrait'
         ? 'contain'
         : 'cover';
-    if (img.getAttribute('src') !== photo.url) {
-      img.src = photo.url;
-    }
+    video.style.objectFit = img.style.objectFit;
+    setCellMedia(layer, index, photo);
     if (caption) caption.textContent = formatCaption(photo);
   });
 }
@@ -187,17 +226,16 @@ function applyCollageLayout(
   layer.container.style.gridTemplateRows = '';
   layer.container.style.clipPath = template.groupClipPath ?? '';
 
-  layer.images.forEach((img, index) => {
-    const cell = img.parentElement as HTMLElement | null;
+  layer.cells.forEach((cell, index) => {
+    const img = layer.images[index];
     const caption = layer.captions[index] as HTMLElement | undefined;
     const spec = template.cells[index];
     const photo = photos[index];
 
-    if (!cell) return;
     if (!spec || !photo) {
       cell.style.display = 'none';
       resetCollageStyles(cell);
-      img.removeAttribute('src');
+      setCellMedia(layer, index, undefined);
       if (caption) caption.textContent = '';
       return;
     }
@@ -215,9 +253,7 @@ function applyCollageLayout(
     cell.style.zIndex = spec.z !== undefined ? String(spec.z) : '';
 
     img.style.objectFit = 'cover';
-    if (img.getAttribute('src') !== photo.url) {
-      img.src = photo.url;
-    }
+    setCellMedia(layer, index, photo);
     if (caption)
       caption.textContent = template.showCaptions
         ? formatCaption(photo, false)
@@ -226,11 +262,220 @@ function applyCollageLayout(
 }
 
 function applyStateToLayer(layer: SlideLayerHandle, state: Renderable): void {
-  if (state.type === 'collage' && state.collageLayout) {
+  if (
+    state.type === 'collage' &&
+    state.collageLayout &&
+    state.photos.every((photo) => photo.mediaType === 'image')
+  ) {
     applyCollageLayout(layer, state.collageLayout, state.photos);
     return;
   }
-  applyGridLayout(layer, state);
+  applyGridLayout(
+    layer,
+    state.type === 'collage'
+      ? { ...state, type: 'single', photos: state.photos.slice(0, 1) }
+      : state,
+  );
+}
+
+function videosForState(layer: SlideLayerHandle, state: CurrentSlideResponse) {
+  return state.photos
+    .map((photo, index) => ({ photo, video: layer.videos[index] }))
+    .filter(({ photo }) => photo.mediaType === 'video');
+}
+
+async function prepareLayerVideos(
+  layer: SlideLayerHandle,
+  state: CurrentSlideResponse,
+  responseReceivedAt: number,
+  isCancelled: () => boolean,
+): Promise<boolean> {
+  const videos = videosForState(layer, state);
+  try {
+    await Promise.all(videos.map(({ video }) => waitForVideoMetadata(video)));
+    await Promise.all(
+      videos.map(async ({ photo, video }) => {
+        if (isCancelled()) throw new Error('Slideshow stopped');
+        const durationMs = photo.durationMs ?? state.imageDurationMs;
+        video.loop = state.imageDurationMs > durationMs;
+        const elapsedMs =
+          state.waitingForPlayback
+            ? 0
+            : state.elapsedMs + (performance.now() - responseReceivedAt);
+        const absoluteOffsetMs = state.videoStartOffsetMs + elapsedMs;
+        const offsetMs = video.loop
+          ? absoluteOffsetMs % durationMs
+          : Math.min(absoluteOffsetMs, Math.max(0, durationMs - 100));
+        await seekVideo(video, offsetMs / 1000);
+        await waitForVideoData(video);
+
+        if (!state.waitingForPlayback) {
+          const refreshedElapsedMs =
+            state.elapsedMs + (performance.now() - responseReceivedAt);
+          if (refreshedElapsedMs >= state.imageDurationMs) {
+            throw new Error('Video slide expired while loading');
+          }
+          const refreshedAbsoluteOffsetMs =
+            state.videoStartOffsetMs + refreshedElapsedMs;
+          const refreshedOffsetMs = video.loop
+            ? refreshedAbsoluteOffsetMs % durationMs
+            : Math.min(
+                refreshedAbsoluteOffsetMs,
+                Math.max(0, durationMs - 100),
+              );
+          await seekVideo(video, refreshedOffsetMs / 1000);
+        }
+
+        // Prove muted autoplay and fetch enough data before transitioning.
+        // The video is reset to the chosen frame and remains paused until it
+        // is fully visible, so loading time does not consume display time.
+        if (state.waitingForPlayback) {
+          await withTimeout(video.play(), VIDEO_READY_TIMEOUT_MS);
+          video.pause();
+          await seekVideo(video, offsetMs / 1000);
+        }
+        if (isCancelled()) {
+          video.pause();
+          throw new Error('Slideshow stopped');
+        }
+      }),
+    );
+    return true;
+  } catch {
+    for (const { video } of videos) clearVideo(video);
+    return false;
+  }
+}
+
+async function playLayerVideos(
+  layer: SlideLayerHandle,
+  state: CurrentSlideResponse,
+  onPlaying: () => Promise<void>,
+): Promise<boolean> {
+  const videos = videosForState(layer, state);
+  try {
+    await Promise.all(
+      videos.map(({ video }) =>
+        withTimeout(video.play(), VIDEO_READY_TIMEOUT_MS),
+      ),
+    );
+    if (state.waitingForPlayback && videos.length > 0) {
+      onPlaying().catch(() => undefined);
+    }
+    return true;
+  } catch {
+    for (const { video } of videos) clearVideo(video);
+    return false;
+  }
+}
+
+function waitForVideoMetadata(video: HTMLVideoElement): Promise<void> {
+  if (video.error) return Promise.reject(new Error('Video failed to load'));
+  if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timeout);
+      video.removeEventListener('loadedmetadata', onReady);
+      video.removeEventListener('error', onError);
+    };
+    const onReady = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error('Video failed to load'));
+    };
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('Video readiness timed out'));
+    }, VIDEO_READY_TIMEOUT_MS);
+    video.addEventListener('loadedmetadata', onReady);
+    video.addEventListener('error', onError);
+  });
+}
+
+function waitForVideoData(video: HTMLVideoElement): Promise<void> {
+  if (video.error) return Promise.reject(new Error('Video data failed to load'));
+  if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timeout);
+      video.removeEventListener('loadeddata', onReady);
+      video.removeEventListener('canplay', onReady);
+      video.removeEventListener('error', onError);
+    };
+    const onReady = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error('Video data failed to load'));
+    };
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('Video data timed out'));
+    }, VIDEO_READY_TIMEOUT_MS);
+    video.addEventListener('loadeddata', onReady);
+    video.addEventListener('canplay', onReady);
+    video.addEventListener('error', onError);
+  });
+}
+
+function seekVideo(video: HTMLVideoElement, timeSeconds: number): Promise<void> {
+  if (Math.abs(video.currentTime - timeSeconds) < 0.05) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timeout);
+      video.removeEventListener('seeked', onSeeked);
+      video.removeEventListener('error', onError);
+    };
+    const onSeeked = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error('Video seek failed'));
+    };
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('Video seek timed out'));
+    }, VIDEO_READY_TIMEOUT_MS);
+    video.addEventListener('seeked', onSeeked);
+    video.addEventListener('error', onError);
+    video.currentTime = timeSeconds;
+  });
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error('Video playback timed out')),
+      timeoutMs,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
+}
+
+function pauseLayerVideos(layer: SlideLayerHandle): void {
+  for (const video of layer.videos) video.pause();
 }
 
 /**
@@ -247,6 +492,7 @@ export class SlideshowEngine {
   private currentSlideId: string | null = null;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private preparedNextKey: string | null = null;
   private readonly clientId = createClientId();
   private readonly layers: [SlideLayerHandle, SlideLayerHandle];
   private readonly overlay: EffectOverlayHandle;
@@ -263,7 +509,7 @@ export class SlideshowEngine {
     this.stopped = false;
     this.startHeartbeat();
     await this.sendHeartbeat().catch(() => undefined);
-    await this.tick();
+    await this.tick().catch(() => this.scheduleNext(RETRY_AFTER_ERROR_MS));
   }
 
   stop(): void {
@@ -271,7 +517,10 @@ export class SlideshowEngine {
     if (this.pollTimer !== null) clearTimeout(this.pollTimer);
     if (this.heartbeatTimer !== null) clearInterval(this.heartbeatTimer);
     this.sendDisconnect();
-    for (const layer of this.layers) stopKenBurns(layer);
+    for (const layer of this.layers) {
+      stopKenBurns(layer);
+      pauseLayerVideos(layer);
+    }
   }
 
   private startHeartbeat(): void {
@@ -283,6 +532,22 @@ export class SlideshowEngine {
 
   private sendHeartbeat(): Promise<void> {
     return api.photos.slideshowHeartbeat(this.clientId);
+  }
+
+  private sendReady(slideId: string): Promise<void> {
+    return this.sendReadyUntilAcknowledged(slideId);
+  }
+
+  private async sendReadyUntilAcknowledged(slideId: string): Promise<void> {
+    while (!this.stopped) {
+      try {
+        await api.photos.slideshowReady(this.clientId, slideId);
+        return;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+    throw new Error('Slideshow stopped');
   }
 
   private sendDisconnect(): void {
@@ -298,8 +563,10 @@ export class SlideshowEngine {
     if (this.stopped) return;
 
     let state: CurrentSlideResponse;
+    let responseReceivedAt: number;
     try {
       state = await api.photos.currentSlide();
+      responseReceivedAt = performance.now();
     } catch {
       this.scheduleNext(RETRY_AFTER_ERROR_MS);
       return;
@@ -311,7 +578,7 @@ export class SlideshowEngine {
       // images failed to load (or a stale/deleted photo briefly slipped
       // through), we deliberately don't mark it as shown, so the very next
       // poll retries instead of getting stuck thinking it's already current.
-      const rendered = await this.showSlide(state);
+      const rendered = await this.showSlide(state, responseReceivedAt);
       if (rendered) {
         this.currentSlideId = state.slideId;
         window.dispatchEvent(
@@ -319,57 +586,128 @@ export class SlideshowEngine {
             detail: {
               slideId: state.slideId,
               imageDurationMs: state.imageDurationMs,
-              photoId: state.photos[0]?.id ?? null,
+              photoId:
+                state.photos[0]?.mediaType === 'image'
+                  ? state.photos[0].id
+                  : null,
             },
           }),
         );
       }
+      if (!rendered) {
+        if (this.stopped) return;
+        if (
+          state.waitingForPlayback &&
+          state.photos.some((photo) => photo.mediaType === 'video')
+        ) {
+          await api.photos
+            .slideshowFailed(this.clientId, state.slideId)
+            .catch(() => undefined);
+        }
+        this.scheduleNext(RETRY_AFTER_ERROR_MS);
+        return;
+      }
       if (this.stopped) return;
     }
 
-    // Warm the backend-declared "next" slide's images now, during the
-    // current display window, so the eventual switch to it is instant —
-    // this is a rendering optimization, not a decision: the server already
-    // decided what's next, we're just fetching bytes ahead of time.
     if (state.next && state.next.photos.length > 0) {
-      preloadAll(
-        state.next.photos.map((p) => p.url),
-        Math.max(MIN_TRANSITION_PRELOAD_MS, state.nextPollInMs),
-      ).catch(() => undefined);
+      this.prepareNextSlide(state.next).catch(() => undefined);
     }
 
-    this.scheduleNext(state.nextPollInMs);
+    const renderElapsedMs = performance.now() - responseReceivedAt;
+    this.scheduleNext(Math.max(0, state.nextPollInMs - renderElapsedMs));
   }
 
   private scheduleNext(delayMs: number): void {
     if (this.stopped) return;
     this.pollTimer = setTimeout(() => {
-      this.tick().catch(() => undefined);
+      this.tick().catch(() => this.scheduleNext(RETRY_AFTER_ERROR_MS));
     }, delayMs);
   }
 
-  /** Returns whether the slide actually rendered — false means "try again next poll". */
-  private async showSlide(state: CurrentSlideResponse): Promise<boolean> {
-    const urls = state.photos.map((p) => p.url);
+  private async prepareNextSlide(
+    next: NonNullable<CurrentSlideResponse['next']>,
+  ): Promise<void> {
+    const key = `${next.type}:${next.photos.map((photo) => photo.id).join(',')}:${next.videoStartOffsetMs}`;
+    if (this.preparedNextKey === key) return;
+    this.preparedNextKey = key;
 
+    const backIndex = this.frontIndex === 0 ? 1 : 0;
+    const layer = this.layers[backIndex];
+    stopKenBurns(layer);
+    pauseLayerVideos(layer);
+    applyStateToLayer(layer, next);
+
+    const videoEntries = next.photos
+      .map((photo, index) => ({ photo, video: layer.videos[index] }))
+      .filter(({ photo }) => photo.mediaType === 'video');
+    try {
+      await Promise.all(
+        videoEntries.map(async ({ photo, video }) => {
+          const expectedUrl = photo.url;
+          try {
+            await waitForVideoMetadata(video);
+            if (video.getAttribute('src') !== expectedUrl) return;
+            await seekVideo(video, next.videoStartOffsetMs / 1000);
+            if (video.getAttribute('src') !== expectedUrl) return;
+            await waitForVideoData(video);
+          } catch (error) {
+            if (video.getAttribute('src') === expectedUrl) clearVideo(video);
+            throw error;
+          }
+        }),
+      );
+    } catch (error) {
+      if (this.preparedNextKey === key) this.preparedNextKey = null;
+      throw error;
+    }
+  }
+
+  /** Returns whether the slide actually rendered — false means "try again next poll". */
+  private async showSlide(
+    state: CurrentSlideResponse,
+    responseReceivedAt: number,
+  ): Promise<boolean> {
+    this.preparedNextKey = null;
     if (!this.hasRenderedFirst) {
       // First slide this client has ever seen: nothing to transition from —
       // just preload it and fade the layer straight in.
       const layer = this.layers[this.frontIndex];
+      stopKenBurns(layer);
       applyStateToLayer(layer, state);
       applyCinematicLook(layer, state.lookCinematic);
-      const results = await preloadAll(urls, FIRST_SLIDE_PRELOAD_TIMEOUT_MS);
+      const results = await preloadAll(
+        state.photos.filter((photo) => photo.mediaType === 'image'),
+        FIRST_SLIDE_PRELOAD_TIMEOUT_MS,
+      );
       if (results.some((ok) => !ok)) {
         return false; // never show a broken/incomplete image — retry next poll
       }
       if (state.type === 'collage' && state.collageLayout) {
         prepareCollageCellsForReveal(layer, state.collageLayout);
       }
+      if (
+        !(await prepareLayerVideos(
+          layer,
+          state,
+          responseReceivedAt,
+          () => this.stopped,
+        ))
+      )
+        return false;
       layer.container.style.opacity = '1';
       if (state.type === 'collage' && state.collageLayout) {
         revealCollageCells(layer, state.collageLayout);
       }
       startKenBurns(layer, state.imageDurationMs + state.transitionDurationMs);
+      if (
+        !(await playLayerVideos(layer, state, () =>
+          this.sendReady(state.slideId),
+        ))
+      ) {
+        layer.container.style.opacity = '0';
+        return false;
+      }
       this.hasRenderedFirst = true;
       return true;
     }
@@ -381,12 +719,13 @@ export class SlideshowEngine {
     const shouldRevealCollage = collageLayout !== null;
 
     backLayer.container.style.visibility = '';
+    stopKenBurns(backLayer);
     applyStateToLayer(backLayer, state);
     applyCinematicLook(backLayer, state.lookCinematic);
     // Usually already warmed via the previous tick's "next" preload, so this
     // resolves near-instantly; the timeout is just a safety net.
     const results = await preloadAll(
-      urls,
+      state.photos.filter((photo) => photo.mediaType === 'image'),
       Math.max(MIN_TRANSITION_PRELOAD_MS, state.transitionDurationMs),
     );
     if (results.some((ok) => !ok)) {
@@ -400,7 +739,29 @@ export class SlideshowEngine {
       );
     }
 
+    if (
+        !(await prepareLayerVideos(
+        backLayer,
+        state,
+        responseReceivedAt,
+        () => this.stopped,
+      ))
+    ) {
+      pauseLayerVideos(backLayer);
+      return false;
+    }
+
+    if (
+      !state.waitingForPlayback &&
+      !(await playLayerVideos(backLayer, state, () =>
+        this.sendReady(state.slideId),
+      ))
+    ) {
+      return false;
+    }
+
     if (shouldRevealCollage) backLayer.container.style.visibility = 'hidden';
+    pauseLayerVideos(frontLayer);
     try {
       await runTransition(state.effect, {
         incoming: backLayer,
@@ -419,7 +780,16 @@ export class SlideshowEngine {
     }
 
     frontLayer.container.style.opacity = '0';
+    pauseLayerVideos(frontLayer);
     this.frontIndex = backIndex;
+    if (
+      state.waitingForPlayback &&
+      !(await playLayerVideos(backLayer, state, () =>
+        this.sendReady(state.slideId),
+      ))
+    ) {
+      return false;
+    }
     return true;
   }
 }

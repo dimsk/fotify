@@ -12,6 +12,7 @@ import { SlideshowStateService } from './slideshow-state.service';
 import { StatisticsService } from './statistics.service';
 import { ScanService } from '../scan/scan.service';
 import { SlideshowPresenceDto } from './slideshow-presence.dto';
+import { SlideshowReadyDto } from './slideshow-ready.dto';
 
 @Controller('photos')
 export class PhotosController {
@@ -37,6 +38,24 @@ export class PhotosController {
   @HttpCode(204)
   slideshowHeartbeat(@Body() dto: SlideshowPresenceDto) {
     return this.slideshowStateService.recordClientHeartbeat(dto.clientId);
+  }
+
+  @Post('slideshow-ready')
+  @HttpCode(204)
+  slideshowReady(@Body() dto: SlideshowReadyDto) {
+    return this.slideshowStateService.recordSlideReady(
+      dto.clientId,
+      dto.slideId,
+    );
+  }
+
+  @Post('slideshow-failed')
+  @HttpCode(204)
+  slideshowFailed(@Body() dto: SlideshowReadyDto) {
+    return this.slideshowStateService.recordSlideFailed(
+      dto.clientId,
+      dto.slideId,
+    );
   }
 
   @Post('slideshow-disconnect')

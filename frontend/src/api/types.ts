@@ -16,6 +16,7 @@ export interface Source {
   paused: boolean;
   createdAt: string;
   photoCount: number;
+  videoCount: number;
   photosNeedingLocationBackfill: number;
   locationBackfillActive: boolean;
   photosNeedingLensApertureBackfill: number;
@@ -95,6 +96,15 @@ export type GrainEffect = 'none' | 'light' | 'strong';
 export type DateOverlayMode = 'always' | 'sometimes';
 export type WeatherOverlayMode = 'always' | 'sometimes';
 export type Language = 'en' | 'de';
+export type VideoCompatibilityMode =
+  | 'direct-mp4'
+  | 'direct-common'
+  | 'normalize';
+export type VideoDurationMode =
+  | 'full'
+  | 'photo'
+  | 'capped'
+  | 'random-segment';
 export type WeatherIcon =
   | 'sun'
   | 'moon'
@@ -128,6 +138,9 @@ export interface Settings {
   transitionDurationMs: number;
   cinematicChance: number;
   imageDurationMs: number;
+  videoCompatibilityMode: VideoCompatibilityMode;
+  videoDurationMode: VideoDurationMode;
+  videoMaxDurationMs: number;
   avoidRepeats: boolean;
   adjacentPortraitTriples: boolean;
   shuffleMode: ShuffleMode;
@@ -170,6 +183,9 @@ export interface UpdateSettingsInput {
   transitionDurationMs?: number;
   cinematicChance?: number;
   imageDurationMs?: number;
+  videoCompatibilityMode?: VideoCompatibilityMode;
+  videoDurationMode?: VideoDurationMode;
+  videoMaxDurationMs?: number;
   avoidRepeats?: boolean;
   adjacentPortraitTriples?: boolean;
   shuffleMode?: ShuffleMode;
@@ -318,8 +334,11 @@ export interface UpdateGoogleOAuthConfigInput {
 export interface SlidePhoto {
   id: number;
   url: string;
+  mediaType: 'image' | 'video';
   width: number;
   height: number;
+  durationMs: number | null;
+  mimeType: string | null;
   orientation: string;
   capturedAt: string | null;
   locationCity: string | null;
@@ -363,10 +382,14 @@ export interface CurrentSlideResponse {
   imageDurationMs: number;
   transitionDurationMs: number;
   nextPollInMs: number;
+  elapsedMs: number;
+  waitingForPlayback: boolean;
+  videoStartOffsetMs: number;
   next: {
     type: SlideType;
     photos: SlidePhoto[];
     collageLayout: CollageLayoutType | null;
+    videoStartOffsetMs: number;
   } | null;
 }
 
@@ -389,11 +412,13 @@ export interface SourceStatistic {
   name: string;
   type: SourceType;
   photoCount: number;
+  videoCount: number;
   shownCount: number;
 }
 
 export interface Statistics {
   totalPhotos: number;
+  totalVideos: number;
   totalSources: number;
   byOrientation: { portrait: number; landscape: number; square: number };
   shownCount: number;

@@ -31,6 +31,14 @@ export class QueuedSlide {
   @Column({ type: 'varchar', nullable: true })
   layout: CollageLayoutType | null;
 
+  /** Stable random seek point prepared ahead of time for a single-video slide. */
+  @Column({ type: 'int', nullable: true })
+  videoStartOffsetMs: number | null;
+
+  /** Picture duration used when videoStartOffsetMs was selected. */
+  @Column({ type: 'int', nullable: true })
+  videoSegmentDurationMs: number | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }

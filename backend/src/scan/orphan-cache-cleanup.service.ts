@@ -95,14 +95,34 @@ export class OrphanCacheCleanupService implements OnApplicationBootstrap {
     let evicted = 0;
     for (const photo of candidates) {
       if (protectedIds.has(photo.id)) continue;
+      const fresh = await this.photoRepo.findOneBy({ id: photo.id });
+      if (!fresh || fresh.cachedDisplayPath !== photo.cachedDisplayPath) continue;
+      if (
+        fresh.mediaType === 'video' &&
+        fresh.cachedAt &&
+        Date.now() < fresh.cachedAt.getTime() + CACHE_EVICTION_DELAY_MS
+      ) {
+        continue;
+      }
+      if (
+        fresh.mediaType === 'video' &&
+        fresh.lastShownAt &&
+        Date.now() <
+          fresh.lastShownAt.getTime() +
+            (fresh.durationMs ?? 0) +
+            CACHE_EVICTION_DELAY_MS
+      ) {
+        continue;
+      }
       const path = photo.cachedDisplayPath;
       if (!path) continue;
 
       await this.cacheStorage.delete(path);
-      photo.cachedDisplayPath = null;
-      photo.cachedAt = null;
-      await this.photoRepo.save(photo);
-      evicted += 1;
+      const result = await this.photoRepo.update(
+        { id: fresh.id, cachedDisplayPath: path },
+        { cachedDisplayPath: null, cachedAt: null, cachedVideoMode: null },
+      );
+      if (result.affected === 1) evicted += 1;
     }
 
     if (evicted > 0) {

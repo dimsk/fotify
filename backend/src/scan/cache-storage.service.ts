@@ -9,11 +9,19 @@ export class CacheStorageService {
   private readonly cacheDir = join(process.env.FOTIFY_DATA_DIR ?? DEFAULT_DATA_DIR, 'cache');
 
   /** Shards cache files by hash prefix so no single directory grows unbounded. */
-  async pathForHash(fileHash: string): Promise<string> {
+  async pathForHash(
+    fileHash: string,
+    extension = '.jpg',
+    variant?: string,
+  ): Promise<string> {
     const shard = fileHash.slice(0, 2);
     const shardDir = join(this.cacheDir, shard);
     await fs.mkdir(shardDir, { recursive: true });
-    return join(shardDir, `${fileHash}.jpg`);
+    const suffix = variant ? `-${variant.replace(/[^a-z0-9-]/gi, '')}` : '';
+    const normalizedExtension = extension.startsWith('.')
+      ? extension
+      : `.${extension}`;
+    return join(shardDir, `${fileHash}${suffix}${normalizedExtension}`);
   }
 
   /** Deletes a cache file and, if that leaves its shard directory empty, removes the directory too. */

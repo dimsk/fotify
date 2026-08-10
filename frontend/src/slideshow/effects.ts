@@ -14,26 +14,26 @@ export interface TransitionContext {
 // The one easing used throughout: a standard ease-in-out for crossfades and filter sweeps.
 const EASE = 'cubic-bezier(0.4, 0, 0.2, 1)';
 
-const kenBurnsAnimations = new WeakMap<HTMLImageElement, Animation>();
+const kenBurnsAnimations = new WeakMap<Element, Animation>();
 
 /** Starts a slow continuous scale on a layer's images, lasting its full reign as the front layer. */
 export function startKenBurns(layer: SlideLayerHandle, durationMs: number): void {
-  for (const img of layer.images) {
-    kenBurnsAnimations.get(img)?.cancel();
-    if (!img.getAttribute('src')) continue;
+  for (const media of layer.media) {
+    kenBurnsAnimations.get(media)?.cancel();
+    if (!media.getAttribute('src') || media.style.display === 'none') continue;
     const targetScale = 1.06 + Math.random() * 0.05;
-    const anim = img.animate(
+    const anim = media.animate(
       [{ transform: 'scale(1)' }, { transform: `scale(${targetScale.toFixed(3)})` }],
       { duration: durationMs, easing: 'linear', fill: 'forwards' },
     );
-    kenBurnsAnimations.set(img, anim);
+    kenBurnsAnimations.set(media, anim);
   }
 }
 
 export function stopKenBurns(layer: SlideLayerHandle): void {
-  for (const img of layer.images) {
-    kenBurnsAnimations.get(img)?.cancel();
-    img.style.transform = 'scale(1)';
+  for (const media of layer.media) {
+    kenBurnsAnimations.get(media)?.cancel();
+    media.style.transform = 'scale(1)';
   }
 }
 
@@ -47,8 +47,8 @@ const CINEMATIC_FILTER = 'contrast(1.1) saturate(1.2) brightness(0.95) sepia(0.1
  * neutral once a transition finishes.
  */
 export function applyCinematicLook(layer: SlideLayerHandle, enabled: boolean): void {
-  for (const img of layer.images) {
-    img.style.filter = enabled ? CINEMATIC_FILTER : 'none';
+  for (const media of layer.media) {
+    media.style.filter = enabled ? CINEMATIC_FILTER : 'none';
   }
 }
 
@@ -70,9 +70,7 @@ function neutralizeLayer(layer: SlideLayerHandle): void {
   style.clipPath = 'none';
   style.zIndex = '';
 
-  for (const img of layer.images) {
-    const cell = img.parentElement as HTMLElement | null;
-    if (!cell) continue;
+  for (const cell of layer.cells) {
     for (const anim of cell.getAnimations()) anim.cancel();
     cell.style.opacity = '';
   }

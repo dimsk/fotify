@@ -6,6 +6,7 @@ import {
   Clock3,
   CloudSun,
   FolderOpen,
+  Film,
   SlidersHorizontal,
   Settings as SettingsIcon,
   Tv,
@@ -53,6 +54,13 @@ export function AdminLayout() {
             active={location.pathname.startsWith('/admin/sources')}
           />
         </Indicator>
+        <NavLink
+          component={Link}
+          to="/admin/video"
+          label={t('nav.video')}
+          leftSection={<Film size={18} />}
+          active={location.pathname.startsWith('/admin/video')}
+        />
         <NavLink
           component={Link}
           to="/admin/general"

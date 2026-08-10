@@ -35,6 +35,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+function timeoutSignal(timeoutMs: number): AbortSignal {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), timeoutMs);
+  return controller.signal;
+}
+
 export const api = {
   sources: {
     list: () => request<Source[]>('/sources'),
@@ -70,11 +76,26 @@ export const api = {
     scanProgressUrl: (id: number) => `/sources/${id}/scan-progress`,
   },
   photos: {
-    currentSlide: () => request<CurrentSlideResponse>('/photos/current-slide'),
+    currentSlide: () =>
+      request<CurrentSlideResponse>('/photos/current-slide', {
+        signal: timeoutSignal(10_000),
+      }),
     slideshowHeartbeat: (clientId: string) =>
       request<void>('/photos/slideshow-heartbeat', {
         method: 'POST',
         body: JSON.stringify({ clientId }),
+      }),
+    slideshowReady: (clientId: string, slideId: string) =>
+      request<void>('/photos/slideshow-ready', {
+        method: 'POST',
+        body: JSON.stringify({ clientId, slideId }),
+        signal: timeoutSignal(10_000),
+      }),
+    slideshowFailed: (clientId: string, slideId: string) =>
+      request<void>('/photos/slideshow-failed', {
+        method: 'POST',
+        body: JSON.stringify({ clientId, slideId }),
+        signal: timeoutSignal(10_000),
       }),
     slideshowDisconnect: (clientId: string) =>
       request<void>('/photos/slideshow-disconnect', {

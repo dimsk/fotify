@@ -2,13 +2,19 @@ import { extname } from 'path';
 import { FileProvider } from '../file-providers/file-provider.interface';
 import { isHiddenDirectoryName } from '../common/hidden-directories';
 
-export async function walkImageFiles(
+export interface WalkedFile {
+  relativePath: string;
+  size: number | null;
+  modifiedAt: Date | null;
+}
+
+export async function walkMediaFiles(
   provider: FileProvider,
-  imageExtensions: Set<string>,
+  mediaExtensions: Set<string>,
   dir = '',
-): Promise<string[]> {
+): Promise<WalkedFile[]> {
   const entries = await provider.listDir(dir);
-  const files: string[] = [];
+  const files: WalkedFile[] = [];
 
   for (const entry of entries) {
     if (isHiddenDirectoryName(entry.name)) {
@@ -16,9 +22,13 @@ export async function walkImageFiles(
     }
     const childPath = dir ? `${dir}/${entry.name}` : entry.name;
     if (entry.isDirectory) {
-      files.push(...(await walkImageFiles(provider, imageExtensions, childPath)));
-    } else if (imageExtensions.has(extname(entry.name).toLowerCase())) {
-      files.push(childPath);
+      files.push(...(await walkMediaFiles(provider, mediaExtensions, childPath)));
+    } else if (mediaExtensions.has(extname(entry.name).toLowerCase())) {
+      files.push({
+        relativePath: childPath,
+        size: entry.size,
+        modifiedAt: entry.modifiedAt,
+      });
     }
   }
 

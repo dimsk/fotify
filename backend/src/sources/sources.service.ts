@@ -33,9 +33,17 @@ export class SourcesService {
     return Promise.all(
       sources.map(async ({ smbPasswordEnc, ...source }) => ({
         ...source,
-        photoCount: await this.photoRepo.countBy({ sourceId: source.id }),
+        photoCount: await this.photoRepo.countBy({
+          sourceId: source.id,
+          mediaType: 'image',
+        }),
+        videoCount: await this.photoRepo.countBy({
+          sourceId: source.id,
+          mediaType: 'video',
+        }),
         photosNeedingLocationBackfill: await this.photoRepo.countBy({
           sourceId: source.id,
+          mediaType: 'image',
           locationScanned: false,
         }),
         locationBackfillActive: this.scanService.isLocationBackfillActive(
@@ -43,6 +51,7 @@ export class SourcesService {
         ),
         photosNeedingLensApertureBackfill: await this.photoRepo.countBy({
           sourceId: source.id,
+          mediaType: 'image',
           lensApertureScanned: false,
         }),
         lensApertureBackfillActive:

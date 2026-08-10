@@ -32,6 +32,7 @@ export class PhotoCacheService {
    * before it's actually due to be shown, not the display request itself).
    */
   async ensureCached(photo: Photo): Promise<string> {
+    if (photo.mediaType !== 'image') throw new Error('Media is not an image');
     if (photo.cachedDisplayPath && existsSync(photo.cachedDisplayPath)) {
       return photo.cachedDisplayPath;
     }

@@ -31,6 +31,9 @@ import { CalendarSyncIntervalSetting1783434000000 } from './1783434000000-Calend
 import { WeatherRefreshIntervalSetting1783435000000 } from './1783435000000-WeatherRefreshIntervalSetting';
 import { PhotoLensAperture1783436000000 } from './1783436000000-PhotoLensAperture';
 import { PhotoLensApertureScanned1783437000000 } from './1783437000000-PhotoLensApertureScanned';
+import { VideoMedia1783438000000 } from './1783438000000-VideoMedia';
+import { RandomVideoSegment1783439000000 } from './1783439000000-RandomVideoSegment';
+import { VideoSegmentDuration1783440000000 } from './1783440000000-VideoSegmentDuration';
 
 export const migrations = [
   InitialSchema1783265469029,
@@ -66,4 +69,7 @@ export const migrations = [
   WeatherRefreshIntervalSetting1783435000000,
   PhotoLensAperture1783436000000,
   PhotoLensApertureScanned1783437000000,
+  VideoMedia1783438000000,
+  RandomVideoSegment1783439000000,
+  VideoSegmentDuration1783440000000,
 ];

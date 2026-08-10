@@ -1,12 +1,13 @@
 # Fotify
 
-Fotify is a self-hosted photo slideshow and digital photo frame for a TV, kiosk display, Raspberry Pi, or home server. It scans local or SMB photo sources, builds a shared server-side slideshow timeline, serves optimized display-resolution images, and provides an admin UI for sources, effects, overlays, scheduling, calendar, and weather.
+Fotify is a self-hosted picture and video slideshow for a TV, kiosk display, Raspberry Pi, or home server. It scans local or SMB media sources, builds a shared server-side slideshow timeline, serves optimized pictures and video clips, and provides an admin UI for sources, effects, overlays, scheduling, calendar, and weather.
 
 ## Features
 
 - Full-screen slideshow UI designed for unattended displays.
 - Admin UI for adding local and SMB photo sources.
 - Lazy image cache using Sharp, EXIF rotation, and display-size JPEG generation.
+- Muted video clip playback with optional H.264 normalization through FFmpeg.
 - Server-controlled slideshow timeline so multiple displays stay in sync.
 - Slideshow pauses automatically when no client is connected.
 - Single-photo, portrait triple, and named collage layouts.
@@ -20,6 +21,7 @@ Fotify is a self-hosted photo slideshow and digital photo frame for a TV, kiosk 
 
 - Frontend: React, Vite, TypeScript, Mantine, React Router
 - Backend: NestJS, TypeORM, SQLite, Sharp, exifr
+- Video processing: FFmpeg and FFprobe
 - Runtime: Node.js 20 in Docker, nginx for the frontend container
 - Storage: SQLite database and generated image cache under `FOTIFY_DATA_DIR`
 
@@ -74,6 +76,8 @@ For a local Docker-mounted source, add the container path, for example `/photo` 
 
 Install dependencies separately for backend and frontend:
 
+FFmpeg and FFprobe must also be available on `PATH` for local backend development. They are included in the production Docker image.
+
 ```bash
 cd backend
 npm install
@@ -97,6 +101,20 @@ Start the frontend dev server:
 cd frontend
 npm run dev
 ```
+
+Alternatively, start every non-application Compose service in Docker and run
+the backend and frontend locally in watch mode with one command:
+
+```bash
+./scripts/dev.sh
+```
+
+The script stops existing Fotify backend/frontend containers to free their
+ports. It runs both local development servers in the background, writes their
+output to `.dev/logs`, prints the ports for every service, and monitors local
+HTTP health plus Docker container state in an in-place terminal dashboard
+until you press Ctrl+C. Docker
+dependency services remain running when the local dev servers are stopped.
 
 Local development ports:
 
@@ -123,7 +141,7 @@ Fotify stores runtime data in `FOTIFY_DATA_DIR`:
 
 ```text
 fotify.db       SQLite database
-cache/          generated display-resolution JPEGs
+cache/          generated display-resolution JPEGs and playable video files
 ```
 
 The backend runs TypeORM migrations automatically on startup. Cache files are generated lazily when photos are prewarmed or displayed, then reclaimed when they are no longer referenced, no longer queued, or stale.

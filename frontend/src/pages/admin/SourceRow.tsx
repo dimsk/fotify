@@ -161,6 +161,7 @@ export function SourceRow({
         </Text>
       </Table.Td>
       <Table.Td>{source.photoCount}</Table.Td>
+      <Table.Td>{source.videoCount}</Table.Td>
       <Table.Td>{source.shownCount}</Table.Td>
       <Table.Td>
         <Stack gap={4} style={{ minWidth: 130 }}>

@@ -20,6 +20,8 @@ import {
   PhotoFrameStyle,
   ShuffleMode,
   TransitionEffect,
+  VideoCompatibilityMode,
+  VideoDurationMode,
 } from './settings.entity';
 
 const TIME_HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -52,6 +54,17 @@ const CAPTION_POSITIONS: PhotoCaptionPosition[] = [
 const GRAIN_EFFECTS: GrainEffect[] = ['none', 'light', 'strong'];
 const DATE_OVERLAY_MODES: DateOverlayMode[] = ['always', 'sometimes'];
 const LANGUAGES: Language[] = ['en', 'de'];
+const VIDEO_COMPATIBILITY_MODES: VideoCompatibilityMode[] = [
+  'direct-mp4',
+  'direct-common',
+  'normalize',
+];
+const VIDEO_DURATION_MODES: VideoDurationMode[] = [
+  'full',
+  'photo',
+  'capped',
+  'random-segment',
+];
 const COLLAGE_LAYOUTS: CollageLayoutSelection[] = [
   'heartCutout',
   'heartMosaic',
@@ -102,6 +115,20 @@ export class UpdateSettingsDto {
   @IsInt()
   @Min(500)
   imageDurationMs?: number;
+
+  @IsOptional()
+  @IsIn(VIDEO_COMPATIBILITY_MODES)
+  videoCompatibilityMode?: VideoCompatibilityMode;
+
+  @IsOptional()
+  @IsIn(VIDEO_DURATION_MODES)
+  videoDurationMode?: VideoDurationMode;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1000)
+  @Max(600000)
+  videoMaxDurationMs?: number;
 
   @IsOptional()
   @IsBoolean()

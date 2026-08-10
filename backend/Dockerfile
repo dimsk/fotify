@@ -33,7 +33,7 @@ RUN npm run build
 # compiled output and the production node_modules built above.
 FROM node:20-bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  libheif1 libde265-0 ca-certificates \
+  libheif1 libde265-0 ca-certificates ffmpeg \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package*.json ./

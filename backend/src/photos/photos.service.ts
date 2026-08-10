@@ -9,8 +9,11 @@ import { notifyPhotosDeleted } from '../common/photo-deletion.notifier';
 export interface SlidePhoto {
   id: number;
   url: string;
+  mediaType: 'image' | 'video';
   width: number;
   height: number;
+  durationMs: number | null;
+  mimeType: string | null;
   orientation: string;
   capturedAt: string | null;
   locationCity: string | null;
@@ -36,9 +39,9 @@ export class PhotosService {
   async stats() {
     const [total, portrait, landscape, square] = await Promise.all([
       this.photoRepo.count(),
-      this.photoRepo.countBy({ orientation: 'portrait' }),
-      this.photoRepo.countBy({ orientation: 'landscape' }),
-      this.photoRepo.countBy({ orientation: 'square' }),
+      this.photoRepo.countBy({ mediaType: 'image', orientation: 'portrait' }),
+      this.photoRepo.countBy({ mediaType: 'image', orientation: 'landscape' }),
+      this.photoRepo.countBy({ mediaType: 'image', orientation: 'square' }),
     ]);
     return { total, portrait, landscape, square };
   }

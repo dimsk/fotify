@@ -7,15 +7,17 @@ import { FileProvidersModule } from '../file-providers/file-providers.module';
 import { ScanModule } from '../scan/scan.module';
 import { MediaController } from './media.controller';
 import { PhotoCacheService } from './photo-cache.service';
+import { Settings } from '../settings/settings.entity';
+import { VideoCacheService } from './video-cache.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Photo, PhotoAction, Source]),
+    TypeOrmModule.forFeature([Photo, PhotoAction, Source, Settings]),
     FileProvidersModule,
     ScanModule,
   ],
   controllers: [MediaController],
-  providers: [PhotoCacheService],
-  exports: [PhotoCacheService],
+  providers: [PhotoCacheService, VideoCacheService],
+  exports: [PhotoCacheService, VideoCacheService],
 })
 export class MediaModule {}

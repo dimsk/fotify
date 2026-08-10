@@ -11,11 +11,12 @@ import { CacheStorageService } from './cache-storage.service';
 import { OrphanCacheCleanupService } from './orphan-cache-cleanup.service';
 import { AutoRescanService } from './auto-rescan.service';
 import { GeocodingService } from './geocoding.service';
+import { VideoProcessingService } from '../media/video-processing.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Source, Photo, Settings, QueuedSlide]), FileProvidersModule],
   controllers: [ScanController],
-  providers: [ScanService, CacheStorageService, OrphanCacheCleanupService, AutoRescanService, GeocodingService],
-  exports: [ScanService, CacheStorageService],
+  providers: [ScanService, CacheStorageService, OrphanCacheCleanupService, AutoRescanService, GeocodingService, VideoProcessingService],
+  exports: [ScanService, CacheStorageService, VideoProcessingService],
 })
 export class ScanModule {}

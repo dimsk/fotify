@@ -13,6 +13,7 @@ import { StatisticsPage } from './pages/admin/StatisticsPage';
 import { CalendarPage } from './pages/admin/CalendarPage';
 import { DatePage } from './pages/admin/DatePage';
 import { WeatherPage } from './pages/admin/WeatherPage';
+import { VideoPage } from './pages/admin/VideoPage';
 
 export function App() {
   return (
@@ -26,6 +27,7 @@ export function App() {
           <Route path="sources" element={<SourcesPage />} />
           <Route path="general" element={<GeneralPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="video" element={<VideoPage />} />
           <Route path="date" element={<DatePage />} />
           <Route path="weather" element={<WeatherPage />} />
           <Route path="calendar" element={<CalendarPage />} />

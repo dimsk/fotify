@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Subject, Observable, of } from 'rxjs';
 import { createHash } from 'crypto';
+import { extname } from 'path';
 import sharp from 'sharp';
 import * as exifr from 'exifr';
 import pLimit from 'p-limit';
@@ -12,13 +13,23 @@ import { FileProvider } from '../file-providers/file-provider.interface';
 import { FileProviderFactory } from '../file-providers/file-provider.factory';
 import { CacheStorageService } from './cache-storage.service';
 import { GeocodingService } from './geocoding.service';
-import { walkImageFiles } from './directory-walker';
+import { WalkedFile, walkMediaFiles } from './directory-walker';
 import { computeDisplayDimensions } from './exif-orientation.util';
 import { cpuWorkLimiter } from '../common/cpu-work-limiter';
 import { notifyPhotosDeleted } from '../common/photo-deletion.notifier';
+import { VideoProcessingService } from '../media/video-processing.service';
 
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.heic', '.heif']);
+const COMMON_VIDEO_EXTENSIONS = new Set([
+  '.mp4',
+  '.mov',
+  '.m4v',
+  '.webm',
+  '.mkv',
+  '.avi',
+]);
 const SCAN_CONCURRENCY = 6;
+const VIDEO_SCAN_CONCURRENCY = 1;
 
 export interface ScanProgressEvent {
   status:
@@ -50,6 +61,7 @@ export class ScanService implements OnApplicationBootstrap {
     private readonly fileProviderFactory: FileProviderFactory,
     private readonly cacheStorage: CacheStorageService,
     private readonly geocodingService: GeocodingService,
+    private readonly videoProcessing: VideoProcessingService,
   ) {}
 
   /**
@@ -118,7 +130,11 @@ export class ScanService implements OnApplicationBootstrap {
 
     try {
       await provider.connect();
-      const filePaths = await walkImageFiles(provider, IMAGE_EXTENSIONS);
+      const mediaExtensions = new Set([
+        ...IMAGE_EXTENSIONS,
+        ...COMMON_VIDEO_EXTENSIONS,
+      ]);
+      const files = await walkMediaFiles(provider, mediaExtensions);
 
       const existingPhotos = await this.photoRepo.find({ where: { sourceId } });
       // Keyed by relativePath (a file's stable identity within a source) so
@@ -134,34 +150,51 @@ export class ScanService implements OnApplicationBootstrap {
 
       let processed = 0;
       const limit = pLimit(SCAN_CONCURRENCY);
+      const videoLimit = pLimit(VIDEO_SCAN_CONCURRENCY);
       subject.next({
         status: 'scanning',
         processed: 0,
-        total: filePaths.length,
+        total: files.length,
       });
 
       await Promise.all(
-        filePaths.map((relativePath) =>
+        files.map((file) =>
           limit(async () => {
             try {
-              await this.importFile(
-                provider,
-                source,
-                relativePath,
-                existingByPath,
-                seenHashes,
-              );
+              const extension = extname(file.relativePath).toLowerCase();
+              if (COMMON_VIDEO_EXTENSIONS.has(extension)) {
+                await videoLimit(() =>
+                  this.importVideo(
+                    provider,
+                    source,
+                    file,
+                    existingByPath,
+                    seenHashes,
+                  ),
+                );
+              } else {
+                await this.importImage(
+                  provider,
+                  source,
+                  file,
+                  existingByPath,
+                  seenHashes,
+                );
+              }
             } catch (err) {
+              // The source file was discovered, so an import failure must not
+              // make an existing row look stale and delete it below.
+              existingByPath.delete(file.relativePath);
               this.logger.warn(
-                `Failed to import ${relativePath}: ${(err as Error).message}`,
+                `Failed to import ${file.relativePath}: ${(err as Error).message}`,
               );
             } finally {
               processed += 1;
               subject.next({
                 status: 'scanning',
                 processed,
-                total: filePaths.length,
-                currentFile: relativePath,
+                total: files.length,
+                currentFile: file.relativePath,
               });
             }
           }),
@@ -181,8 +214,8 @@ export class ScanService implements OnApplicationBootstrap {
       await this.sourceRepo.save(source);
       subject.next({
         status: 'idle',
-        processed: filePaths.length,
-        total: filePaths.length,
+        processed: files.length,
+        total: files.length,
       });
     } catch (err) {
       const message = (err as Error).message;
@@ -198,13 +231,14 @@ export class ScanService implements OnApplicationBootstrap {
     }
   }
 
-  private async importFile(
+  private async importImage(
     provider: FileProvider,
     source: Source,
-    relativePath: string,
+    file: WalkedFile,
     existingByPath: Map<string, Photo>,
     seenHashes: Set<string>,
   ): Promise<void> {
+    const relativePath = file.relativePath;
     // The file read (potentially over a slow SMB link) stays outside the
     // limiter so it doesn't consume a CPU-work slot while waiting on I/O.
     const buffer = await provider.readFile(relativePath);
@@ -219,18 +253,21 @@ export class ScanService implements OnApplicationBootstrap {
       const existing = existingByPath.get(relativePath);
       if (existing) {
         existingByPath.delete(relativePath); // claimed — not stale
-        if (existing.fileHash === fileHash) {
+        if (existing.mediaType === 'image' && existing.fileHash === fileHash) {
           return; // unchanged since last scan
         }
-        // Content changed at this path since the last scan — the old row and
-        // its cache file are superseded by the re-import below.
-        await this.photoRepo.remove(existing);
-        notifyPhotosDeleted([existing.id]);
-        await this.cacheStorage.delete(existing.cachedDisplayPath);
-        seenHashes.delete(existing.fileHash);
       }
 
       if (seenHashes.has(fileHash)) {
+        await this.claimMovedFile(
+          source.id,
+          file,
+          fileHash,
+          'image',
+          existing,
+          existingByPath,
+          seenHashes,
+        );
         return; // identical content already imported from another path this scan
       }
 
@@ -275,6 +312,7 @@ export class ScanService implements OnApplicationBootstrap {
       const photo = this.photoRepo.create({
         sourceId: source.id,
         relativePath,
+        mediaType: 'image',
         fileHash,
         width: dims.width,
         height: dims.height,
@@ -285,11 +323,150 @@ export class ScanService implements OnApplicationBootstrap {
         lensApertureScanned: true,
         lensApertureCheckedAt: new Date(),
         cachedDisplayPath: null,
+        cachedVideoMode: null,
+        durationMs: null,
+        mimeType: null,
+        videoCodec: null,
+        videoContainer: null,
+        sourceFileSize: file.size,
+        sourceModifiedAt: file.modifiedAt,
         ...location,
       });
       await this.photoRepo.save(photo);
+      if (existing) {
+        await this.photoRepo.remove(existing);
+        notifyPhotosDeleted([existing.id]);
+        await this.cacheStorage.delete(existing.cachedDisplayPath);
+        seenHashes.delete(existing.fileHash);
+      }
       seenHashes.add(fileHash);
     });
+  }
+
+  private async importVideo(
+    provider: FileProvider,
+    source: Source,
+    file: WalkedFile,
+    existingByPath: Map<string, Photo>,
+    seenHashes: Set<string>,
+  ): Promise<void> {
+    const existing = existingByPath.get(file.relativePath);
+    if (
+      existing?.mediaType === 'video' &&
+      file.size !== null &&
+      existing.sourceFileSize === file.size &&
+      file.modifiedAt !== null &&
+      existing.sourceModifiedAt?.getTime() === file.modifiedAt.getTime()
+    ) {
+      existingByPath.delete(file.relativePath);
+      return;
+    }
+
+    await this.videoProcessing.withMaterializedFile(
+      provider,
+      file.relativePath,
+      async (path, fileHash) => {
+        const metadata = await this.videoProcessing.probe(path, file.relativePath);
+        if (existing) {
+          existingByPath.delete(file.relativePath);
+          if (existing.mediaType === 'video' && existing.fileHash === fileHash) {
+            await this.photoRepo.update(existing.id, {
+              sourceFileSize: file.size,
+              sourceModifiedAt: file.modifiedAt,
+            });
+            return;
+          }
+        }
+
+        if (seenHashes.has(fileHash)) {
+          await this.claimMovedFile(
+            source.id,
+            file,
+            fileHash,
+            'video',
+            existing,
+            existingByPath,
+            seenHashes,
+          );
+          return;
+        }
+
+        const video = this.photoRepo.create({
+          sourceId: source.id,
+          relativePath: file.relativePath,
+          mediaType: 'video',
+          fileHash,
+          width: metadata.width,
+          height: metadata.height,
+          orientation: metadata.orientation,
+          durationMs: metadata.durationMs,
+          mimeType: metadata.mimeType,
+          videoCodec: metadata.codec,
+          videoContainer: metadata.container,
+          sourceFileSize: file.size,
+          sourceModifiedAt: file.modifiedAt,
+          capturedAt: null,
+          lens: null,
+          aperture: null,
+          lensApertureScanned: true,
+          lensApertureCheckedAt: new Date(),
+          gpsLatitude: null,
+          gpsLongitude: null,
+          locationCity: null,
+          locationCountry: null,
+          locationScanned: true,
+          locationCheckedAt: new Date(),
+          cachedDisplayPath: null,
+          cachedVideoMode: null,
+          cachedAt: null,
+          lastShownAt: null,
+        });
+        await this.photoRepo.save(video);
+        if (existing) {
+          await this.photoRepo.remove(existing);
+          notifyPhotosDeleted([existing.id]);
+          await this.cacheStorage.delete(existing.cachedDisplayPath);
+          seenHashes.delete(existing.fileHash);
+        }
+        seenHashes.add(fileHash);
+      },
+    );
+  }
+
+  private async claimMovedFile(
+    sourceId: number,
+    file: WalkedFile,
+    fileHash: string,
+    mediaType: 'image' | 'video',
+    replacedAtTarget: Photo | undefined,
+    existingByPath: Map<string, Photo>,
+    seenHashes: Set<string>,
+  ): Promise<void> {
+    const duplicate = await this.photoRepo.findOneBy({ fileHash });
+    if (
+      !duplicate ||
+      duplicate.sourceId !== sourceId ||
+      duplicate.mediaType !== mediaType ||
+      !existingByPath.has(duplicate.relativePath)
+    ) {
+      return;
+    }
+
+    const oldPath = duplicate.relativePath;
+    await this.photoRepo.update(duplicate.id, {
+      relativePath: file.relativePath,
+      sourceFileSize: file.size,
+      sourceModifiedAt: file.modifiedAt,
+    });
+    existingByPath.delete(oldPath);
+    existingByPath.delete(file.relativePath);
+
+    if (replacedAtTarget && replacedAtTarget.id !== duplicate.id) {
+      await this.photoRepo.remove(replacedAtTarget);
+      notifyPhotosDeleted([replacedAtTarget.id]);
+      await this.cacheStorage.delete(replacedAtTarget.cachedDisplayPath);
+      seenHashes.delete(replacedAtTarget.fileHash);
+    }
   }
 
   /**
@@ -404,7 +581,8 @@ export class ScanService implements OnApplicationBootstrap {
     try {
       const query = this.photoRepo
         .createQueryBuilder('photo')
-        .where('photo.locationScanned = :locationScanned', {
+        .where('photo.mediaType = :mediaType', { mediaType: 'image' })
+        .andWhere('photo.locationScanned = :locationScanned', {
           locationScanned: false,
         });
       if (sourceId !== undefined) {
@@ -566,7 +744,8 @@ export class ScanService implements OnApplicationBootstrap {
     try {
       const query = this.photoRepo
         .createQueryBuilder('photo')
-        .where('photo.lensApertureScanned = :lensApertureScanned', {
+        .where('photo.mediaType = :mediaType', { mediaType: 'image' })
+        .andWhere('photo.lensApertureScanned = :lensApertureScanned', {
           lensApertureScanned: false,
         });
       if (sourceId !== undefined) {

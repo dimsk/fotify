@@ -17,6 +17,7 @@ import {
   FolderOpen,
   Calendar,
   MapPin,
+  Film,
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { formatCapturedAt } from '../../slideshow/format-date';
@@ -43,8 +44,10 @@ export function StatisticsPage() {
   if (!data) return null;
 
   const shownPercent =
-    data.totalPhotos > 0
-      ? Math.round((data.shownCount / data.totalPhotos) * 100)
+    data.totalPhotos + data.totalVideos > 0
+      ? Math.round(
+          (data.shownCount / (data.totalPhotos + data.totalVideos)) * 100,
+        )
       : 0;
   const capturedRange =
     data.oldestCapturedAt || data.newestCapturedAt
@@ -57,6 +60,11 @@ export function StatisticsPage() {
       icon: <Images size={16} />,
       label: t('statistics.totalPhotos'),
       value: String(data.totalPhotos),
+    },
+    {
+      icon: <Film size={16} />,
+      label: t('statistics.totalVideos'),
+      value: String(data.totalVideos),
     },
     {
       icon: <FolderOpen size={16} />,
@@ -149,20 +157,26 @@ export function StatisticsPage() {
             <Table.Th>{t('common.name')}</Table.Th>
             <Table.Th>{t('common.type')}</Table.Th>
             <Table.Th>{t('sources.photos')}</Table.Th>
+            <Table.Th>{t('sources.videos')}</Table.Th>
             <Table.Th>{t('sources.shown')}</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
           {data.sources.map((source) => {
             const percent =
-              source.photoCount > 0
-                ? Math.round((source.shownCount / source.photoCount) * 100)
+              source.photoCount + source.videoCount > 0
+                ? Math.round(
+                    (source.shownCount /
+                      (source.photoCount + source.videoCount)) *
+                      100,
+                  )
                 : 0;
             return (
               <Table.Tr key={source.id}>
                 <Table.Td>{source.name}</Table.Td>
                 <Table.Td>{source.type === 'local' ? t('common.local') : 'SMB'}</Table.Td>
                 <Table.Td>{source.photoCount}</Table.Td>
+                <Table.Td>{source.videoCount}</Table.Td>
                 <Table.Td>
                   <Text size="sm" mb={2}>
                     {source.shownCount} ({percent}%)

@@ -7,6 +7,7 @@ import { CollageLayoutType, Settings } from '../settings/settings.entity';
 import { Source } from '../sources/source.entity';
 import { QueuedSlide } from './queued-slide.entity';
 import { PhotoCacheService } from '../media/photo-cache.service';
+import { VideoCacheService } from '../media/video-cache.service';
 import { EffectName, pickEffect } from './effect-picker.util';
 import { SlidePhoto, SlidePlan } from './photos.service';
 import { photoDeletions$ } from '../common/photo-deletion.notifier';
@@ -16,6 +17,11 @@ import {
 } from './collage-layouts';
 import { isWithinTimeWindow } from '../common/time-window.util';
 import { DEFAULT_SETTINGS } from '../settings/settings-defaults';
+import { extname } from 'path';
+import {
+  randomVideoStartOffset,
+  videoDisplayDuration,
+} from './video-playback.util';
 
 const ROTATION_DURATION_MS = 60 * 60 * 1000; // 1 hour
 const LOOKAHEAD_DEPTH = 10;
@@ -36,6 +42,8 @@ type InternalSlidePlan =
 interface BufferedSlide {
   queuedSlideId: number | null;
   plan: InternalSlidePlan;
+  videoStartOffsetMs: number;
+  videoSegmentDurationMs: number | null;
 }
 
 interface CurrentSlide {
@@ -43,9 +51,10 @@ interface CurrentSlide {
   plan: InternalSlidePlan;
   effect: EffectName;
   lookCinematic: boolean;
-  startedAt: number;
+  startedAt: number | null;
   imageDurationMs: number;
   transitionDurationMs: number;
+  videoStartOffsetMs: number;
 }
 
 export interface CurrentSlideResponse {
@@ -58,10 +67,14 @@ export interface CurrentSlideResponse {
   imageDurationMs: number;
   transitionDurationMs: number;
   nextPollInMs: number;
+  elapsedMs: number;
+  waitingForPlayback: boolean;
+  videoStartOffsetMs: number;
   next: {
     type: 'single' | 'triple' | 'collage' | 'empty';
     photos: SlidePhoto[];
     collageLayout: CollageLayoutType | null;
+    videoStartOffsetMs: number;
   } | null;
 }
 
@@ -84,6 +97,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
   private pausedRemainingMs: number | null = null;
   private readonly clientExpirations = new Map<string, number>();
   private advancing = false;
+  private readinessPromise: Promise<void> | null = null;
   private clientPresenceDetectionEnabled = true;
 
   constructor(
@@ -96,6 +110,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
     @InjectRepository(QueuedSlide)
     private readonly queuedSlideRepo: Repository<QueuedSlide>,
     private readonly photoCacheService: PhotoCacheService,
+    private readonly videoCacheService: VideoCacheService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -126,6 +141,66 @@ export class SlideshowStateService implements OnApplicationBootstrap {
       return;
     }
     this.schedulePresenceCheck();
+  }
+
+  async recordSlideReady(clientId: string, slideId: string): Promise<void> {
+    this.clientExpirations.set(
+      clientId,
+      Date.now() + CLIENT_HEARTBEAT_TIMEOUT_MS,
+    );
+    this.schedulePresenceCheck();
+    if (
+      !this.current ||
+      this.current.slideId !== slideId ||
+      this.current.startedAt !== null ||
+      this.current.plan.type !== 'single' ||
+      this.current.plan.photos[0].mediaType !== 'video'
+    ) {
+      return;
+    }
+    if (this.readinessPromise) return this.readinessPromise;
+
+    const current = this.current;
+    const work = (async () => {
+      await this.markShown([current.plan.photos[0].id]);
+      if (this.current !== current || current.startedAt !== null) return;
+      current.startedAt = Date.now();
+      this.scheduleAdvance(current.imageDurationMs);
+    })().finally(() => {
+      if (this.readinessPromise === work) this.readinessPromise = null;
+    });
+    this.readinessPromise = work;
+    return work;
+  }
+
+  async recordSlideFailed(clientId: string, slideId: string): Promise<void> {
+    this.clientExpirations.set(
+      clientId,
+      Date.now() + CLIENT_HEARTBEAT_TIMEOUT_MS,
+    );
+    this.schedulePresenceCheck();
+    if (
+      !this.current ||
+      this.current.slideId !== slideId ||
+      this.current.startedAt !== null ||
+      this.current.plan.type !== 'single' ||
+      this.current.plan.photos[0].mediaType !== 'video'
+    ) {
+      return;
+    }
+    if (this.readinessPromise) {
+      await this.readinessPromise;
+      return;
+    }
+    if (this.advancing) {
+      setTimeout(() => {
+        this.recordSlideFailed(clientId, slideId).catch((error) =>
+          this.logger.error('Failed to skip unplayable video', error),
+        );
+      }, 100);
+      return;
+    }
+    await this.advance();
   }
 
   /**
@@ -171,8 +246,11 @@ export class SlideshowStateService implements OnApplicationBootstrap {
             ? resolved.length === 3
             : row.layout !== null &&
               resolved.length === COLLAGE_LAYOUT_PHOTO_COUNTS[row.layout]; // collage
+      const validMediaTypes =
+        row.type === 'single' ||
+        resolved.every((photo) => photo?.mediaType === 'image');
 
-      if (allResolved && validCount && !anyHidden) {
+      if (allResolved && validCount && validMediaTypes && !anyHidden) {
         const plan: InternalSlidePlan =
           row.type === 'single'
             ? { type: 'single', photos: [resolved[0]] }
@@ -182,7 +260,12 @@ export class SlideshowStateService implements OnApplicationBootstrap {
                   photos: [resolved[0], resolved[1], resolved[2]],
                 }
               : { type: 'collage', photos: resolved, layout: row.layout! };
-        this.upcoming.push({ queuedSlideId: row.id, plan });
+        this.upcoming.push({
+          queuedSlideId: row.id,
+          plan,
+          videoStartOffsetMs: row.videoStartOffsetMs ?? 0,
+          videoSegmentDurationMs: row.videoSegmentDurationMs ?? null,
+        });
       } else {
         staleIds.push(row.id);
       }
@@ -239,7 +322,12 @@ export class SlideshowStateService implements OnApplicationBootstrap {
 
     if (
       this.current &&
-      references({ queuedSlideId: null, plan: this.current.plan })
+      references({
+        queuedSlideId: null,
+        plan: this.current.plan,
+        videoStartOffsetMs: this.current.videoStartOffsetMs,
+        videoSegmentDurationMs: null,
+      })
     ) {
       this.logger.warn(
         'Currently-shown slide references a deleted photo — advancing immediately',
@@ -271,14 +359,19 @@ export class SlideshowStateService implements OnApplicationBootstrap {
         imageDurationMs: 6000,
         transitionDurationMs: 1200,
         nextPollInMs: 2000,
+        elapsedMs: 0,
+        waitingForPlayback: false,
+        videoStartOffsetMs: 0,
         next: null,
       };
     }
-    const elapsed = Date.now() - this.current.startedAt;
-    const nextPollInMs = Math.max(
-      MIN_POLL_MS,
-      this.current.imageDurationMs - elapsed,
-    );
+    const waitingForPlayback = this.current.startedAt === null;
+    const elapsed = waitingForPlayback
+      ? 0
+      : Date.now() - this.current.startedAt!;
+    const nextPollInMs = waitingForPlayback
+      ? MIN_POLL_MS
+      : Math.max(MIN_POLL_MS, this.current.imageDurationMs - elapsed);
     const next = this.upcoming[0];
 
     return {
@@ -291,11 +384,15 @@ export class SlideshowStateService implements OnApplicationBootstrap {
       imageDurationMs: this.current.imageDurationMs,
       transitionDurationMs: this.current.transitionDurationMs,
       nextPollInMs,
+      elapsedMs: Math.max(0, elapsed),
+      waitingForPlayback,
+      videoStartOffsetMs: this.current.videoStartOffsetMs,
       next: next
         ? {
             type: next.plan.type,
             photos: next.plan.photos.map(toSlidePhoto),
             collageLayout: collageLayoutOf(next.plan),
+            videoStartOffsetMs: next.videoStartOffsetMs,
           }
         : null,
     };
@@ -333,6 +430,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
       clearTimeout(this.tickTimer);
       this.tickTimer = null;
       if (this.current) {
+        if (this.current.startedAt === null) return;
         this.pausedRemainingMs = Math.max(
           MIN_POLL_MS,
           this.current.imageDurationMs - (Date.now() - this.current.startedAt),
@@ -350,6 +448,8 @@ export class SlideshowStateService implements OnApplicationBootstrap {
       return;
     }
 
+    if (this.current.startedAt === null) return;
+
     const remainingMs =
       this.pausedRemainingMs ??
       Math.max(
@@ -363,7 +463,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
 
   private scheduleAdvance(delayMs: number): void {
     if (!this.hasActiveClients()) {
-      this.pauseSlideshow();
+      this.pausedRemainingMs = Math.max(MIN_POLL_MS, delayMs);
       return;
     }
     if (this.tickTimer !== null) clearTimeout(this.tickTimer);
@@ -394,9 +494,37 @@ export class SlideshowStateService implements OnApplicationBootstrap {
       // exact same upcoming order once the window ends, rather than losing
       // or reshuffling whatever was already queued.
       const buffered = asleep ? undefined : this.upcoming.shift();
-      const plan: InternalSlidePlan = asleep
+      let plan: InternalSlidePlan = asleep
         ? { type: 'empty', photos: [] }
         : (buffered?.plan ?? { type: 'empty', photos: [] });
+      let videoStartOffsetMs = buffered?.videoStartOffsetMs ?? 0;
+      let videoSegmentDurationMs = buffered?.videoSegmentDurationMs ?? null;
+      if (
+        plan.type === 'single' &&
+        plan.photos[0]?.mediaType === 'video' &&
+        (settings?.videoCompatibilityMode ??
+          DEFAULT_SETTINGS.videoCompatibilityMode!) === 'direct-mp4' &&
+        extname(plan.photos[0].relativePath).toLowerCase() !== '.mp4'
+      ) {
+        plan = await this.pickSlidePlan();
+        videoStartOffsetMs = this.randomVideoStartOffset(
+          plan,
+          settings?.imageDurationMs ?? DEFAULT_SETTINGS.imageDurationMs!,
+        );
+        videoSegmentDurationMs = null;
+      }
+      let videoPreparationFailed = false;
+      if (plan.type === 'single' && plan.photos[0]?.mediaType === 'video') {
+        try {
+          await this.videoCacheService.ensureCached(plan.photos[0]);
+        } catch (error) {
+          this.logger.warn(
+            `Skipping video ${plan.photos[0].id}: ${(error as Error).message}`,
+          );
+          plan = { type: 'empty', photos: [] };
+          videoPreparationFailed = true;
+        }
+      }
 
       // The cinematic look is a per-photo color grade, not a transition
       // effect — when it lands, the transition is forced to a plain fade
@@ -435,22 +563,56 @@ export class SlideshowStateService implements OnApplicationBootstrap {
 
       // Collages carry more to look at (up to 12 photos) than a single or
       // triple slide, so they stay on screen twice as long.
-      const baseDuration = settings?.imageDurationMs ?? DEFAULT_SETTINGS.imageDurationMs!;
-      const imageDurationMs =
-        plan.type === 'collage' ? baseDuration * 2 : baseDuration;
+      const baseDuration =
+        settings?.imageDurationMs ?? DEFAULT_SETTINGS.imageDurationMs!;
+      const singleVideo =
+        plan.type === 'single' && plan.photos[0]?.mediaType === 'video'
+          ? plan.photos[0]
+          : null;
+      const durationMode =
+        settings?.videoDurationMode ?? DEFAULT_SETTINGS.videoDurationMode!;
+      if (singleVideo && durationMode === 'random-segment') {
+        const maxOffset = Math.max(
+          0,
+          (singleVideo.durationMs ?? baseDuration) - baseDuration,
+        );
+        if (
+          videoSegmentDurationMs !== baseDuration ||
+          videoStartOffsetMs > maxOffset
+        ) {
+          videoStartOffsetMs = this.randomVideoStartOffset(
+            plan,
+            baseDuration,
+          );
+        }
+      } else {
+        videoStartOffsetMs = 0;
+      }
+      const imageDurationMs = singleVideo
+        ? this.videoSlideDuration(singleVideo, settings, baseDuration)
+        : videoPreparationFailed
+          ? MIN_POLL_MS
+          : plan.type === 'collage'
+          ? baseDuration * 2
+          : baseDuration;
 
       this.current = {
         slideId: String(this.tickCounter),
         plan,
         effect,
         lookCinematic,
-        startedAt: Date.now(),
+        startedAt: singleVideo ? null : Date.now(),
         imageDurationMs,
         transitionDurationMs:
           settings?.transitionDurationMs ?? DEFAULT_SETTINGS.transitionDurationMs!,
+        videoStartOffsetMs:
+          singleVideo &&
+          durationMode === 'random-segment'
+            ? videoStartOffsetMs
+            : 0,
       };
 
-      if (plan.photos.length > 0) {
+      if (plan.photos.length > 0 && !singleVideo) {
         await this.markShown(plan.photos.map((p) => p.id));
       }
 
@@ -458,7 +620,9 @@ export class SlideshowStateService implements OnApplicationBootstrap {
 
       // Re-read on every tick so a live settings change (effect/duration)
       // takes effect starting with the very next transition, not before.
-      this.scheduleAdvance(this.current.imageDurationMs);
+      if (!singleVideo) {
+        this.scheduleAdvance(this.current.imageDurationMs);
+      }
     } finally {
       this.advancing = false;
     }
@@ -487,30 +651,70 @@ export class SlideshowStateService implements OnApplicationBootstrap {
   }
 
   private async fillUpcoming(): Promise<void> {
+    const settings = await this.settingsRepo.findOneBy({ id: 1 });
+    const imageDurationMs =
+      settings?.imageDurationMs ?? DEFAULT_SETTINGS.imageDurationMs!;
+    const useRandomSegment =
+      (settings?.videoDurationMode ?? DEFAULT_SETTINGS.videoDurationMode!) ===
+      'random-segment';
     while (this.upcoming.length < LOOKAHEAD_DEPTH) {
       const plan = await this.pickSlidePlan();
       if (plan.type === 'empty') break; // nothing available right now — stop trying
-      const queuedSlideId = await this.persistSlide(plan);
-      this.upcoming.push({ queuedSlideId, plan });
+      const videoStartOffsetMs = useRandomSegment
+        ? this.randomVideoStartOffset(plan, imageDurationMs)
+        : 0;
+      const videoSegmentDurationMs = useRandomSegment ? imageDurationMs : null;
+      const queuedSlideId = await this.persistSlide(
+        plan,
+        videoStartOffsetMs,
+        videoSegmentDurationMs,
+      );
+      this.upcoming.push({
+        queuedSlideId,
+        plan,
+        videoStartOffsetMs,
+        videoSegmentDurationMs,
+      });
       this.prewarm(plan);
     }
   }
 
   /** Records a newly-picked slide in the QueuedSlide table so it survives a restart. */
-  private async persistSlide(plan: InternalSlidePlan): Promise<number | null> {
+  private async persistSlide(
+    plan: InternalSlidePlan,
+    videoStartOffsetMs: number,
+    videoSegmentDurationMs: number | null,
+  ): Promise<number | null> {
     if (plan.type === 'empty') return null;
     const result = await this.queuedSlideRepo.insert({
       type: plan.type,
       photoIds: plan.photos.map((p) => p.id),
       layout: plan.type === 'collage' ? plan.layout : null,
+      videoStartOffsetMs,
+      videoSegmentDurationMs,
     });
     return result.identifiers[0].id as number;
+  }
+
+  private randomVideoStartOffset(
+    plan: InternalSlidePlan,
+    displayDurationMs: number,
+  ): number {
+    if (plan.type !== 'single' || plan.photos[0].mediaType !== 'video') return 0;
+    return randomVideoStartOffset(
+      plan.photos[0].durationMs ?? displayDurationMs,
+      displayDurationMs,
+    );
   }
 
   /** Fire-and-forget: generates cache well ahead of when this slide will actually be shown. */
   private prewarm(plan: InternalSlidePlan): void {
     for (const photo of plan.photos) {
-      this.photoCacheService.ensureCached(photo).catch((err) => {
+      const work =
+        photo.mediaType === 'video'
+          ? this.videoCacheService.ensureCached(photo)
+          : this.photoCacheService.ensureCached(photo);
+      work.catch((err) => {
         this.logger.warn(
           `Prewarm failed for photo ${photo.id}: ${(err as Error).message}`,
         );
@@ -528,6 +732,9 @@ export class SlideshowStateService implements OnApplicationBootstrap {
     const settings = await this.settingsRepo.findOneBy({ id: 1 });
     const avoidRepeats = settings?.avoidRepeats ?? DEFAULT_SETTINGS.avoidRepeats!;
     const sourceId = await this.resolveActiveSourceId(settings);
+    const mp4Only =
+      (settings?.videoCompatibilityMode ??
+        DEFAULT_SETTINGS.videoCompatibilityMode!) === 'direct-mp4';
 
     // Collage is a probability-gated pre-check, not a third term in the
     // single/triple weighting below — that formula balances the
@@ -553,12 +760,12 @@ export class SlideshowStateService implements OnApplicationBootstrap {
       }
     }
 
-    const [portraitCount, landscapeSquareCount] = await Promise.all([
+    const [portraitCount, singleCount] = await Promise.all([
       this.countByOrientation('portrait', sourceId),
-      this.countLandscapeOrSquare(sourceId),
+      this.countSingleEligible(sourceId, mp4Only),
     ]);
 
-    if (portraitCount === 0 && landscapeSquareCount === 0) {
+    if (portraitCount === 0 && singleCount === 0) {
       return { type: 'empty', photos: [] };
     }
 
@@ -566,9 +773,9 @@ export class SlideshowStateService implements OnApplicationBootstrap {
     // Weight triple-slides so that, over time, each individual photo appears with
     // roughly equal frequency: a triple "spends" 3 portrait photos per appearance.
     const pTriple = canTriple
-      ? landscapeSquareCount === 0
+      ? singleCount === 0
         ? 1
-        : portraitCount / (portraitCount + 3 * landscapeSquareCount)
+        : portraitCount / (portraitCount + 3 * singleCount)
       : 0;
 
     if (canTriple && Math.random() < pTriple) {
@@ -580,11 +787,12 @@ export class SlideshowStateService implements OnApplicationBootstrap {
             );
       return { type: 'triple', photos };
     }
-    if (landscapeSquareCount > 0) {
-      const [photo] = await this.randomLandscapeOrSquarePhotos(
+    if (singleCount > 0) {
+      const [photo] = await this.randomSingleMedia(
         1,
         sourceId,
         avoidRepeats,
+        mp4Only,
       );
       return { type: 'single', photos: [photo] };
     }
@@ -663,7 +871,23 @@ export class SlideshowStateService implements OnApplicationBootstrap {
       .createQueryBuilder('photo')
       .where('photo.orientation IN (:...orientations)', {
         orientations: ['landscape', 'square'],
-      });
+      })
+      .andWhere('photo.mediaType = :mediaType', { mediaType: 'image' });
+    if (sourceId !== null)
+      qb.andWhere('photo.sourceId = :sourceId', { sourceId });
+    return this.excludeUnavailable(qb).getCount();
+  }
+
+  private countSingleEligible(
+    sourceId: number | null,
+    mp4Only: boolean,
+  ): Promise<number> {
+    const qb = this.photoRepo
+      .createQueryBuilder('photo')
+      .where(
+        `((photo.mediaType = 'video' AND (:mp4Only = 0 OR LOWER(photo.relativePath) LIKE '%.mp4')) OR (photo.mediaType = 'image' AND photo.orientation IN (:...orientations)))`,
+        { orientations: ['landscape', 'square'], mp4Only: mp4Only ? 1 : 0 },
+      );
     if (sourceId !== null)
       qb.andWhere('photo.sourceId = :sourceId', { sourceId });
     return this.excludeUnavailable(qb).getCount();
@@ -675,7 +899,8 @@ export class SlideshowStateService implements OnApplicationBootstrap {
   ): Promise<number> {
     const qb = this.photoRepo
       .createQueryBuilder('photo')
-      .where('photo.orientation = :orientation', { orientation });
+      .where('photo.orientation = :orientation', { orientation })
+      .andWhere('photo.mediaType = :mediaType', { mediaType: 'image' });
     if (sourceId !== null)
       qb.andWhere('photo.sourceId = :sourceId', { sourceId });
     return this.excludeUnavailable(qb).getCount();
@@ -689,7 +914,8 @@ export class SlideshowStateService implements OnApplicationBootstrap {
   ): Promise<Photo[]> {
     const qb = this.photoRepo
       .createQueryBuilder('photo')
-      .where('photo.orientation = :orientation', { orientation });
+      .where('photo.orientation = :orientation', { orientation })
+      .andWhere('photo.mediaType = :mediaType', { mediaType: 'image' });
     if (sourceId !== null)
       qb.andWhere('photo.sourceId = :sourceId', { sourceId });
     this.applyOrdering(this.excludeUnavailable(qb), avoidRepeats).limit(limit);
@@ -721,6 +947,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
       this.photoRepo
         .createQueryBuilder('photo')
         .where('photo.sourceId = :sourceId', { sourceId: anchor.sourceId })
+        .andWhere('photo.mediaType = :mediaType', { mediaType: 'image' })
         .andWhere('photo.orientation = :orientation', {
           orientation: 'portrait',
         }),
@@ -770,7 +997,8 @@ export class SlideshowStateService implements OnApplicationBootstrap {
   ): Promise<Photo[] | null> {
     const anchorQb = this.photoRepo
       .createQueryBuilder('photo')
-      .where('photo.capturedAt IS NOT NULL');
+      .where('photo.capturedAt IS NOT NULL')
+      .andWhere('photo.mediaType = :mediaType', { mediaType: 'image' });
     if (sourceId !== null)
       anchorQb.andWhere('photo.sourceId = :sourceId', { sourceId });
     this.applyOrdering(this.excludeUnavailable(anchorQb), avoidRepeats).limit(
@@ -785,7 +1013,8 @@ export class SlideshowStateService implements OnApplicationBootstrap {
 
     const clusterQb = this.photoRepo
       .createQueryBuilder('photo')
-      .where('photo.capturedAt BETWEEN :from AND :to', { from, to });
+      .where('photo.capturedAt BETWEEN :from AND :to', { from, to })
+      .andWhere('photo.mediaType = :mediaType', { mediaType: 'image' });
     if (sourceId !== null)
       clusterQb.andWhere('photo.sourceId = :sourceId', { sourceId });
     const matches = await this.excludeUnavailable(clusterQb)
@@ -810,11 +1039,45 @@ export class SlideshowStateService implements OnApplicationBootstrap {
       .createQueryBuilder('photo')
       .where('photo.orientation IN (:...orientations)', {
         orientations: ['landscape', 'square'],
-      });
+      })
+      .andWhere('photo.mediaType = :mediaType', { mediaType: 'image' });
     if (sourceId !== null)
       qb.andWhere('photo.sourceId = :sourceId', { sourceId });
     this.applyOrdering(this.excludeUnavailable(qb), avoidRepeats).limit(limit);
     return qb.getMany();
+  }
+
+  private async randomSingleMedia(
+    limit: number,
+    sourceId: number | null,
+    avoidRepeats: boolean,
+    mp4Only: boolean,
+  ): Promise<Photo[]> {
+    const qb = this.photoRepo
+      .createQueryBuilder('photo')
+      .where(
+        `((photo.mediaType = 'video' AND (:mp4Only = 0 OR LOWER(photo.relativePath) LIKE '%.mp4')) OR (photo.mediaType = 'image' AND photo.orientation IN (:...orientations)))`,
+        { orientations: ['landscape', 'square'], mp4Only: mp4Only ? 1 : 0 },
+      );
+    if (sourceId !== null)
+      qb.andWhere('photo.sourceId = :sourceId', { sourceId });
+    this.applyOrdering(this.excludeUnavailable(qb), avoidRepeats).limit(limit);
+    return qb.getMany();
+  }
+
+  private videoSlideDuration(
+    video: Photo,
+    settings: Settings | null,
+    imageDurationMs: number,
+  ): number {
+    const mode =
+      settings?.videoDurationMode ?? DEFAULT_SETTINGS.videoDurationMode!;
+    return videoDisplayDuration(
+      mode,
+      video.durationMs ?? imageDurationMs,
+      imageDurationMs,
+      settings?.videoMaxDurationMs ?? DEFAULT_SETTINGS.videoMaxDurationMs!,
+    );
   }
 
   /**
@@ -841,8 +1104,11 @@ function toSlidePhoto(photo: Photo): SlidePhoto {
   return {
     id: photo.id,
     url: `/photos/${photo.id}/display`,
+    mediaType: photo.mediaType,
     width: photo.width,
     height: photo.height,
+    durationMs: photo.durationMs,
+    mimeType: photo.mimeType,
     orientation: photo.orientation,
     capturedAt: photo.capturedAt ? photo.capturedAt.toISOString() : null,
     locationCity: photo.locationCity,

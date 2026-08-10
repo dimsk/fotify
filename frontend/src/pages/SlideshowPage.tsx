@@ -54,6 +54,7 @@ function renderCells() {
   return Array.from({ length: MAX_SLIDE_CELLS }, (_, i) => (
     <div key={i} className={styles.cell}>
       <img alt="" />
+      <video muted playsInline preload="auto" />
       <span className={styles.caption} data-caption />
     </div>
   ));

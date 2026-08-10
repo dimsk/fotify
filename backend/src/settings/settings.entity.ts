@@ -25,6 +25,15 @@ export type GrainEffect = 'none' | 'light' | 'strong';
 export type DateOverlayMode = 'always' | 'sometimes';
 export type WeatherOverlayMode = 'always' | 'sometimes';
 export type Language = 'en' | 'de';
+export type VideoCompatibilityMode =
+  | 'direct-mp4'
+  | 'direct-common'
+  | 'normalize';
+export type VideoDurationMode =
+  | 'full'
+  | 'photo'
+  | 'capped'
+  | 'random-segment';
 
 export type CollageLayoutType =
   | 'heartCutout'
@@ -83,6 +92,17 @@ export class Settings {
 
   @Column({ type: 'int', default: 25000 })
   imageDurationMs: number;
+
+  /** How discovered video files are prepared for browser playback. */
+  @Column({ type: 'text', default: 'normalize' })
+  videoCompatibilityMode: VideoCompatibilityMode;
+
+  /** Whether clips use their full, photo, or capped duration. */
+  @Column({ type: 'text', default: 'full' })
+  videoDurationMode: VideoDurationMode;
+
+  @Column({ type: 'int', default: 30000 })
+  videoMaxDurationMs: number;
 
   /** If true, never-shown photos are preferred over already-shown ones. */
   @Column({ type: 'boolean', default: true })

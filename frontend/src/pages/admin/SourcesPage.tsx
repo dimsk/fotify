@@ -96,6 +96,7 @@ export function SourcesPage() {
               <Table.Th>{t('common.type')}</Table.Th>
               <Table.Th>{t('sources.path')}</Table.Th>
               <Table.Th>{t('sources.photos')}</Table.Th>
+              <Table.Th>{t('sources.videos')}</Table.Th>
               <Table.Th>{t('sources.shown')}</Table.Th>
               <Table.Th>{t('common.status')}</Table.Th>
               <Table.Th>{t('common.actions')}</Table.Th>

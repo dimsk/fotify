@@ -10,11 +10,13 @@ export interface SourceStatistic {
   name: string;
   type: 'local' | 'smb';
   photoCount: number;
+  videoCount: number;
   shownCount: number;
 }
 
 export interface Statistics {
   totalPhotos: number;
+  totalVideos: number;
   totalSources: number;
   byOrientation: { portrait: number; landscape: number; square: number };
   shownCount: number;
@@ -31,6 +33,7 @@ export interface Statistics {
 
 interface PhotoStatisticRow {
   total: number | string | null;
+  videos: number | string | null;
   portrait: number | string | null;
   landscape: number | string | null;
   square: number | string | null;
@@ -47,6 +50,7 @@ interface SourceStatisticRow {
   name: string;
   type: 'local' | 'smb';
   photoCount: number | string | null;
+  videoCount: number | string | null;
   shownCount: number | string | null;
 }
 
@@ -66,11 +70,13 @@ export class StatisticsService {
     ]);
 
     const total = toNumber(photoStats.total);
+    const videos = toNumber(photoStats.videos);
     const shown = toNumber(photoStats.shown);
     const withGpsCoordinates = toNumber(photoStats.withGpsCoordinates);
 
     return {
       totalPhotos: total,
+      totalVideos: videos,
       totalSources: sourceStats.length,
       byOrientation: {
         portrait: toNumber(photoStats.portrait),
@@ -78,7 +84,7 @@ export class StatisticsService {
         square: toNumber(photoStats.square),
       },
       shownCount: shown,
-      neverShownCount: total - shown,
+      neverShownCount: total + videos - shown,
       photosWithGpsCoordinates: withGpsCoordinates,
       photosWithoutGpsCoordinates: total - withGpsCoordinates,
       cache,
@@ -97,17 +103,24 @@ export class StatisticsService {
   private async getPhotoStatistics(): Promise<PhotoStatisticRow> {
     const row = await this.photoRepo
       .createQueryBuilder('photo')
-      .select('COUNT(*)', 'total')
+      .select(
+        `SUM(CASE WHEN photo.mediaType = 'image' THEN 1 ELSE 0 END)`,
+        'total',
+      )
       .addSelect(
-        `SUM(CASE WHEN photo.orientation = 'portrait' THEN 1 ELSE 0 END)`,
+        `SUM(CASE WHEN photo.mediaType = 'video' THEN 1 ELSE 0 END)`,
+        'videos',
+      )
+      .addSelect(
+        `SUM(CASE WHEN photo.mediaType = 'image' AND photo.orientation = 'portrait' THEN 1 ELSE 0 END)`,
         'portrait',
       )
       .addSelect(
-        `SUM(CASE WHEN photo.orientation = 'landscape' THEN 1 ELSE 0 END)`,
+        `SUM(CASE WHEN photo.mediaType = 'image' AND photo.orientation = 'landscape' THEN 1 ELSE 0 END)`,
         'landscape',
       )
       .addSelect(
-        `SUM(CASE WHEN photo.orientation = 'square' THEN 1 ELSE 0 END)`,
+        `SUM(CASE WHEN photo.mediaType = 'image' AND photo.orientation = 'square' THEN 1 ELSE 0 END)`,
         'square',
       )
       .addSelect(
@@ -133,6 +146,7 @@ export class StatisticsService {
     return (
       row ?? {
         total: 0,
+        videos: 0,
         portrait: 0,
         landscape: 0,
         square: 0,
@@ -153,7 +167,14 @@ export class StatisticsService {
       .select('source.id', 'id')
       .addSelect('source.name', 'name')
       .addSelect('source.type', 'type')
-      .addSelect('COUNT(photo.id)', 'photoCount')
+      .addSelect(
+        `SUM(CASE WHEN photo.mediaType = 'image' THEN 1 ELSE 0 END)`,
+        'photoCount',
+      )
+      .addSelect(
+        `SUM(CASE WHEN photo.mediaType = 'video' THEN 1 ELSE 0 END)`,
+        'videoCount',
+      )
       .addSelect(
         'SUM(CASE WHEN photo.lastShownAt IS NOT NULL THEN 1 ELSE 0 END)',
         'shownCount',
@@ -169,6 +190,7 @@ export class StatisticsService {
       name: row.name,
       type: row.type,
       photoCount: toNumber(row.photoCount),
+      videoCount: toNumber(row.videoCount),
       shownCount: toNumber(row.shownCount),
     }));
   }
