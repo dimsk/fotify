@@ -54,6 +54,8 @@ export const DEFAULT_SETTINGS: Partial<Settings> = {
   lastQuickScanAt: null,
   lastQuickScanAdded: null,
   lastQuickScanFiles: null,
+  enabledImageFormats: ['.jpg', '.jpeg', '.png', '.heic', '.heif'],
+  enabledVideoFormats: ['.mp4', '.mov', '.m4v', '.webm', '.mkv', '.avi'],
   collageEnabled: true,
   collageChance: 10,
   collageTimeWindowMinutes: 1800,

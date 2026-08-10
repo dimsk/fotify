@@ -177,6 +177,8 @@ export interface Settings {
   lastQuickScanAt: string | null;
   lastQuickScanAdded: number | null;
   lastQuickScanFiles: string | null;
+  enabledImageFormats: string[];
+  enabledVideoFormats: string[];
   collageEnabled: boolean;
   collageChance: number;
   collageTimeWindowMinutes: number;
@@ -214,6 +216,8 @@ export interface UpdateSettingsInput {
   autoRescanTime?: string;
   autoRescanFrequency?: AutoRescanFrequency;
   autoRescanWeekday?: number;
+  enabledImageFormats?: string[];
+  enabledVideoFormats?: string[];
   collageEnabled?: boolean;
   collageChance?: number;
   collageTimeWindowMinutes?: number;

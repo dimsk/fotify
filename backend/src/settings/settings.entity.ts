@@ -267,12 +267,23 @@ export class Settings {
   @Column({ type: 'int', nullable: true })
   lastQuickScanAdded: number | null;
 
-  /**
-   * Paths of the files the most recent quick scan added, JSON-encoded
+  /** Paths of the files the most recent quick scan added, JSON-encoded
    * (only the newest scan's list is kept).
    */
   @Column({ type: 'text', nullable: true })
   lastQuickScanFiles: string | null;
+
+  /**
+   * Which file extensions the scanner picks up, lower-case with leading dot
+   * (e.g. '.jpg'). Both lists act as a whitelist within the formats Fotify
+   * supports at all — removing an entry hides matching files from future
+   * scans without deleting already-imported rows.
+   */
+  @Column({ type: 'simple-array', default: '.jpg,.jpeg,.png,.heic,.heif' })
+  enabledImageFormats: string[];
+
+  @Column({ type: 'simple-array', default: '.mp4,.mov,.m4v,.webm,.mkv,.avi' })
+  enabledVideoFormats: string[];
 
   /**
    * If true, some slides are assembled from several photos taken close

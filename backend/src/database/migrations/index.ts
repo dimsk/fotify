@@ -35,6 +35,7 @@ import { VideoMedia1783438000000 } from './1783438000000-VideoMedia';
 import { RandomVideoSegment1783439000000 } from './1783439000000-RandomVideoSegment';
 import { VideoSegmentDuration1783440000000 } from './1783440000000-VideoSegmentDuration';
 import { SchedulerQuickScan1783441000000 } from './1783441000000-SchedulerQuickScan';
+import { EnabledFileFormats1783442000000 } from './1783442000000-EnabledFileFormats';
 
 export const migrations = [
   InitialSchema1783265469029,
@@ -74,4 +75,5 @@ export const migrations = [
   RandomVideoSegment1783439000000,
   VideoSegmentDuration1783440000000,
   SchedulerQuickScan1783441000000,
+  EnabledFileFormats1783442000000,
 ];

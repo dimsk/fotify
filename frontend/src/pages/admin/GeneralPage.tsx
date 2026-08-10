@@ -3,6 +3,7 @@ import {
   Button,
   Card,
   Group,
+  MultiSelect,
   NumberInput,
   Select,
   Stack,
@@ -12,10 +13,17 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, Settings as SettingsIcon } from 'lucide-react';
+import {
+  CalendarClock,
+  FileImage,
+  Settings as SettingsIcon,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import type { Language } from '../../api/types';
+
+const IMAGE_FORMAT_OPTIONS = ['.jpg', '.jpeg', '.png', '.heic', '.heif'];
+const VIDEO_FORMAT_OPTIONS = ['.mp4', '.mov', '.m4v', '.webm', '.mkv', '.avi'];
 
 const FALLBACK_TIMEZONES = [
   'Europe/Berlin',
@@ -76,6 +84,12 @@ export function GeneralPage() {
   const [nightModeEnabled, setNightModeEnabled] = useState(false);
   const [nightModeStart, setNightModeStart] = useState('22:00');
   const [nightModeEnd, setNightModeEnd] = useState('07:00');
+  const [enabledImageFormats, setEnabledImageFormats] = useState<string[]>(
+    IMAGE_FORMAT_OPTIONS,
+  );
+  const [enabledVideoFormats, setEnabledVideoFormats] = useState<string[]>(
+    VIDEO_FORMAT_OPTIONS,
+  );
 
   useEffect(() => {
     if (!settings) return;
@@ -86,6 +100,12 @@ export function GeneralPage() {
     setNightModeEnabled(settings.nightModeEnabled);
     setNightModeStart(settings.nightModeStart);
     setNightModeEnd(settings.nightModeEnd);
+    setEnabledImageFormats(
+      settings.enabledImageFormats?.length
+        ? settings.enabledImageFormats
+        : IMAGE_FORMAT_OPTIONS,
+    );
+    setEnabledVideoFormats(settings.enabledVideoFormats ?? []);
   }, [settings]);
 
   const updateMutation = useMutation({
@@ -105,6 +125,8 @@ export function GeneralPage() {
       nightModeEnabled,
       nightModeStart,
       nightModeEnd,
+      enabledImageFormats,
+      enabledVideoFormats,
     });
   }
 
@@ -181,6 +203,23 @@ export function GeneralPage() {
             disabled={!nightModeEnabled}
           />
         </Group>
+      </Section>
+
+      <Section icon={<FileImage size={18} />} title={t('settings.fileFormats')}>
+        <MultiSelect
+          label={t('settings.imageFormats')}
+          description={t('settings.imageFormatsDescription')}
+          data={IMAGE_FORMAT_OPTIONS}
+          value={enabledImageFormats}
+          onChange={setEnabledImageFormats}
+        />
+        <MultiSelect
+          label={t('settings.videoFormats')}
+          description={t('settings.videoFormatsDescription')}
+          data={VIDEO_FORMAT_OPTIONS}
+          value={enabledVideoFormats}
+          onChange={setEnabledVideoFormats}
+        />
       </Section>
 
       <Button

@@ -9,6 +9,8 @@ import * as exifr from 'exifr';
 import pLimit from 'p-limit';
 import { Source } from '../sources/source.entity';
 import { Photo } from '../photos/photo.entity';
+import { Settings } from '../settings/settings.entity';
+import { DEFAULT_SETTINGS } from '../settings/settings-defaults';
 import { FileProvider } from '../file-providers/file-provider.interface';
 import { FileProviderFactory } from '../file-providers/file-provider.factory';
 import { CacheStorageService } from './cache-storage.service';
@@ -58,6 +60,8 @@ export class ScanService implements OnApplicationBootstrap {
   constructor(
     @InjectRepository(Source) private readonly sourceRepo: Repository<Source>,
     @InjectRepository(Photo) private readonly photoRepo: Repository<Photo>,
+    @InjectRepository(Settings)
+    private readonly settingsRepo: Repository<Settings>,
     private readonly fileProviderFactory: FileProviderFactory,
     private readonly cacheStorage: CacheStorageService,
     private readonly geocodingService: GeocodingService,
@@ -99,6 +103,29 @@ export class ScanService implements OnApplicationBootstrap {
       total: 0,
       error: source?.lastScanError ?? undefined,
     });
+  }
+
+  /**
+   * The media extensions a scan should pick up right now: the supported
+   * formats intersected with the user's enabled-format settings.
+   */
+  private async enabledMediaExtensions(): Promise<Set<string>> {
+    const settings = await this.settingsRepo.findOneBy({ id: 1 });
+    const images = new Set(
+      settings?.enabledImageFormats?.length
+        ? settings.enabledImageFormats
+        : DEFAULT_SETTINGS.enabledImageFormats!,
+    );
+    const videos = new Set(
+      settings?.enabledVideoFormats?.length
+        ? settings.enabledVideoFormats
+        : DEFAULT_SETTINGS.enabledVideoFormats!,
+    );
+    return new Set(
+      [...IMAGE_EXTENSIONS, ...COMMON_VIDEO_EXTENSIONS].filter(
+        (extension) => images.has(extension) || videos.has(extension),
+      ),
+    );
   }
 
   /** Fire-and-forget: caller does not await scan completion. */
@@ -145,10 +172,7 @@ export class ScanService implements OnApplicationBootstrap {
 
     try {
       await provider.connect();
-      const mediaExtensions = new Set([
-        ...IMAGE_EXTENSIONS,
-        ...COMMON_VIDEO_EXTENSIONS,
-      ]);
+      const mediaExtensions = await this.enabledMediaExtensions();
       const files = await walkMediaFiles(provider, mediaExtensions);
 
       const existingPhotos = await this.photoRepo.find({
@@ -256,10 +280,7 @@ export class ScanService implements OnApplicationBootstrap {
 
     try {
       await provider.connect();
-      const mediaExtensions = new Set([
-        ...IMAGE_EXTENSIONS,
-        ...COMMON_VIDEO_EXTENSIONS,
-      ]);
+      const mediaExtensions = await this.enabledMediaExtensions();
       const files = await walkMediaFiles(provider, mediaExtensions);
 
       const existingPhotos = await this.photoRepo.find({ where: { sourceId } });

@@ -55,6 +55,16 @@ const CAPTION_POSITIONS: PhotoCaptionPosition[] = [
 const GRAIN_EFFECTS: GrainEffect[] = ['none', 'light', 'strong'];
 const DATE_OVERLAY_MODES: DateOverlayMode[] = ['always', 'sometimes'];
 const AUTO_RESCAN_FREQUENCIES: AutoRescanFrequency[] = ['daily', 'weekly'];
+/** Every file format Fotify can import — the settings pick a subset. */
+export const SUPPORTED_IMAGE_FORMATS = ['.jpg', '.jpeg', '.png', '.heic', '.heif'];
+export const SUPPORTED_VIDEO_FORMATS = [
+  '.mp4',
+  '.mov',
+  '.m4v',
+  '.webm',
+  '.mkv',
+  '.avi',
+];
 const LANGUAGES: Language[] = ['en', 'de'];
 const VIDEO_COMPATIBILITY_MODES: VideoCompatibilityMode[] = [
   'direct-mp4',
@@ -215,6 +225,17 @@ export class UpdateSettingsDto {
   @Min(1)
   @Max(7)
   autoRescanWeekday?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsIn(SUPPORTED_IMAGE_FORMATS, { each: true })
+  enabledImageFormats?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsIn(SUPPORTED_VIDEO_FORMATS, { each: true })
+  enabledVideoFormats?: string[];
 
   @IsOptional()
   @IsBoolean()
