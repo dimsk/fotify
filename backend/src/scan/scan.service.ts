@@ -688,7 +688,8 @@ export class ScanService implements OnApplicationBootstrap {
     } catch (error) {
       const message = (error as Error).message;
       if (!/heif|iref|security limit/i.test(message)) throw error;
-      this.logger.log(
+      // Expected for iPhone multi-image HEICs — routine retry, no need to log.
+      this.logger.debug(
         `sharp rejected ${relativePath} (libheif security limit) — retrying with unlimited input`,
       );
       return sharp(buffer, { unlimited: true }).metadata();

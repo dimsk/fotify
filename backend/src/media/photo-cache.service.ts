@@ -98,7 +98,8 @@ export class PhotoCacheService {
         if (!/heif|bad seek|corrupt header|security limit/i.test(message)) {
           throw error;
         }
-        this.logger.log(
+        // Expected for iPhone multi-image HEICs — routine fallback, debug only.
+        this.logger.debug(
           `sharp could not decode ${photo.relativePath} (${message.slice(0, 60)}) — falling back to a HEIC converter`,
         );
         const decoded = await this.decodeHeic(buffer);
