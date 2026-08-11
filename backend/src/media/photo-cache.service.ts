@@ -13,7 +13,6 @@ import { Source } from '../sources/source.entity';
 import { FileProviderFactory } from '../file-providers/file-provider.factory';
 import { CacheStorageService } from '../scan/cache-storage.service';
 import { CACHE_JPEG_QUALITY, CACHE_MAX_DIMENSION } from './cache-image.constants';
-import { cpuWorkLimiter } from '../common/cpu-work-limiter';
 
 @Injectable()
 export class PhotoCacheService {
@@ -71,12 +70,7 @@ export class PhotoCacheService {
     }
 
     const cachedDisplayPath = await this.cacheStorage.pathForHash(photo.fileHash);
-    // The resize/encode itself is the CPU-heavy part — bounded by a shared,
-    // app-wide limiter (see cpuWorkLimiter) so a burst of concurrent
-    // warm-fetches from the slideshow's lookahead queue can't spike CPU.
-    // The (potentially slow, e.g. over SMB) file read above stays outside
-    // the limiter so it doesn't hold up that budget while waiting on I/O.
-    await cpuWorkLimiter(async () => {
+    {
       const pipeline = (input: Buffer | string) =>
         sharp(input)
           .rotate()
@@ -105,7 +99,7 @@ export class PhotoCacheService {
         const decoded = await this.decodeHeic(buffer);
         await pipeline(decoded).toFile(cachedDisplayPath);
       }
-    });
+    }
 
     photo.cachedDisplayPath = cachedDisplayPath;
     photo.cachedAt = new Date();

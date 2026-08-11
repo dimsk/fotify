@@ -16,7 +16,6 @@ import { CacheStorageService } from './cache-storage.service';
 import { GeocodingService } from './geocoding.service';
 import { WalkedFile, walkMediaFiles } from './directory-walker';
 import { computeDisplayDimensions } from './exif-orientation.util';
-import { cpuWorkLimiter } from '../common/cpu-work-limiter';
 import { notifyPhotosDeleted } from '../common/photo-deletion.notifier';
 import { VideoProcessingService } from '../media/video-processing.service';
 
@@ -427,14 +426,11 @@ export class ScanService implements OnApplicationBootstrap {
   ): Promise<void> {
     const relativePath = file.relativePath;
     // The file read (potentially over a slow SMB link) stays outside the
-    // limiter so it doesn't consume a CPU-work slot while waiting on I/O.
     const buffer = await provider.readFile(relativePath);
 
-    // Hashing + EXIF/metadata parsing is the real CPU cost per file — bounded
-    // by the same app-wide limiter PhotoCacheService uses, so a scan running
-    // at the same time the slideshow is prefetching doesn't stack unbounded
-    // concurrent CPU work on top of it.
-    await cpuWorkLimiter(async () => {
+    // Scanning is sequential now (one file at a time), so no CPU bounding is
+    // needed here — hashing, EXIF, and metadata run inline per file.
+    {
       const fileHash = createHash('sha256').update(buffer).digest('hex');
 
       const existing = existingByPath.get(relativePath);
@@ -527,7 +523,7 @@ export class ScanService implements OnApplicationBootstrap {
         seenHashes.delete(existing.fileHash);
       }
       seenHashes.add(fileHash);
-    });
+    }
   }
 
   private async importVideo(
@@ -848,9 +844,7 @@ export class ScanService implements OnApplicationBootstrap {
           for (const photo of sourcePhotos) {
             try {
               const buffer = await provider.readFile(photo.relativePath);
-              const location = await cpuWorkLimiter(() =>
-                this.extractLocation(buffer),
-              );
+              const location = await this.extractLocation(buffer);
               await this.photoRepo.update(photo.id, location);
             } catch (err) {
               this.logger.warn(
@@ -1009,9 +1003,7 @@ export class ScanService implements OnApplicationBootstrap {
           for (const photo of sourcePhotos) {
             try {
               const buffer = await provider.readFile(photo.relativePath);
-              const lensAperture = await cpuWorkLimiter(() =>
-                this.extractLensAperture(buffer),
-              );
+              const lensAperture = await this.extractLensAperture(buffer);
               await this.photoRepo.update(photo.id, lensAperture);
             } catch (err) {
               this.logger.warn(
