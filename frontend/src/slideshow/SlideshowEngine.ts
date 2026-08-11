@@ -312,15 +312,16 @@ async function prepareLayerVideos(
       videos.map(async ({ photo, video }) => {
         if (isCancelled()) throw new Error('Slideshow stopped');
         const durationMs = photo.durationMs ?? state.imageDurationMs;
-        video.loop = state.imageDurationMs > durationMs;
+        // Short videos never loop — they play once to their natural end and
+        // the engine moves on. Looping is only a fallback so a video longer
+        // than the slot still has a defined wrap point for the offset math.
+        video.loop = false;
         const elapsedMs =
           state.waitingForPlayback
             ? 0
             : state.elapsedMs + (performance.now() - responseReceivedAt);
         const absoluteOffsetMs = state.videoStartOffsetMs + elapsedMs;
-        const offsetMs = video.loop
-          ? absoluteOffsetMs % durationMs
-          : Math.min(absoluteOffsetMs, Math.max(0, durationMs - 100));
+        const offsetMs = Math.min(absoluteOffsetMs, Math.max(0, durationMs - 100));
         await seekVideo(video, offsetMs / 1000);
         await waitForVideoData(video);
 
@@ -332,12 +333,10 @@ async function prepareLayerVideos(
           }
           const refreshedAbsoluteOffsetMs =
             state.videoStartOffsetMs + refreshedElapsedMs;
-          const refreshedOffsetMs = video.loop
-            ? refreshedAbsoluteOffsetMs % durationMs
-            : Math.min(
-                refreshedAbsoluteOffsetMs,
-                Math.max(0, durationMs - 100),
-              );
+          const refreshedOffsetMs = Math.min(
+            refreshedAbsoluteOffsetMs,
+            Math.max(0, durationMs - 100),
+          );
           await seekVideo(video, refreshedOffsetMs / 1000);
         }
 
@@ -495,14 +494,12 @@ function pauseLayerVideos(layer: SlideLayerHandle): void {
 }
 
 /**
- * Caps every video's visible playback at its configured segment. The
- * slideshow otherwise relies on the next poll to replace the slide — if
- * that poll is late, a long clip would visibly overrun its slot and a
- * short clip (loop=true) would repeat indefinitely. Long clips freeze via
- * a timeupdate check at videoStartOffsetMs + imageDurationMs. Short clips
- * are allowed exactly one wrap: the 'ended' handler drops the loop flag,
- * so the first repetition runs to the clip's natural end and holds on its
- * last frame until the server advances.
+ * Caps a long video's visible playback at its configured segment: the
+ * slideshow otherwise relies on the next poll to replace the slide, and if
+ * that poll is late a clip would visibly overrun its slot. Short clips
+ * (shorter than the slide) need no guard — the server now schedules them
+ * with imageDurationMs = their real duration, so the next slide arrives
+ * exactly when the video ends (see videoSlideDuration server-side).
  */
 function armSegmentEndGuard(
   layer: SlideLayerHandle,
@@ -510,23 +507,7 @@ function armSegmentEndGuard(
 ): void {
   for (const { photo, video } of videosForState(layer, state)) {
     const durationMs = photo.durationMs ?? state.imageDurationMs;
-    const loops = state.imageDurationMs > durationMs;
-    if (loops) {
-      // Short clip: allowed exactly one repetition — the native loop
-      // handles the wrap seamlessly, the 'ended' handler drops the flag so
-      // the second pass runs to its natural end and freezes there until the
-      // server advances, instead of looping forever when a poll is late.
-      video.addEventListener(
-        'ended',
-        () => {
-          video.loop = false;
-          video.play().catch(() => undefined);
-        },
-        { once: true },
-      );
-      continue;
-    }
-    // Long clip: freeze exactly at the end of the configured segment.
+    if (state.imageDurationMs > durationMs) continue; // server advances at natural end
     const segmentEndSeconds =
       (state.videoStartOffsetMs + state.imageDurationMs) / 1000;
     const onTimeUpdate = () => {

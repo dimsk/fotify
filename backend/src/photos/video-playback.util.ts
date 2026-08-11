@@ -7,7 +7,13 @@ export function videoDisplayDuration(
   maxDurationMs: number,
 ): number {
   const duration = Math.max(videoDurationMs, 500);
-  if (mode === 'photo' || mode === 'random-segment') return imageDurationMs;
+  if (mode === 'photo' || mode === 'random-segment') {
+    // A clip shorter than the picture duration should end the slide when it
+    // ends — not loop or hold its last frame until the slot is over. The
+    // server advances at the video's natural end, so every synced client
+    // switches at the same moment.
+    return Math.min(imageDurationMs, duration);
+  }
   if (mode === 'capped') return Math.min(duration, maxDurationMs);
   return duration;
 }
