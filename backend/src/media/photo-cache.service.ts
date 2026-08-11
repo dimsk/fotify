@@ -2,8 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { existsSync } from 'fs';
+import { promises as fs } from 'fs';
+import { spawn } from 'child_process';
+import { join } from 'path';
+import { tmpdir } from 'os';
 import sharp from 'sharp';
-import convertHeicToJpeg from 'heic-convert';
+import convertHeicToJpegWasm from 'heic-convert';
 import { Photo } from '../photos/photo.entity';
 import { Source } from '../sources/source.entity';
 import { FileProviderFactory } from '../file-providers/file-provider.factory';
@@ -95,9 +99,9 @@ export class PhotoCacheService {
           throw error;
         }
         this.logger.log(
-          `sharp could not decode ${photo.relativePath} (${message.slice(0, 60)}) — falling back to heic-convert`,
+          `sharp could not decode ${photo.relativePath} (${message.slice(0, 60)}) — falling back to a HEIC converter`,
         );
-        const decoded = await convertHeicToJpeg(buffer);
+        const decoded = await this.decodeHeic(buffer);
         await pipeline(decoded).toFile(cachedDisplayPath);
       }
     });
@@ -108,5 +112,57 @@ export class PhotoCacheService {
     this.logger.debug(`Generated cache for photo ${photo.id} (${photo.relativePath})`);
 
     return cachedDisplayPath;
+  }
+
+  /**
+   * Decodes a HEIC buffer sharp can't handle (iPhone multi-image HEICs with
+   * Live Photo / depth data trip a `bad seek` regression in the libheif
+   * bundled with sharp). Prefers the native `heif-convert` binary shipped in
+   * the Docker image (libheif-examples) — ~4x faster than the WASM fallback
+   * on weak hardware like a Synology NAS. Falls back to the heic-convert
+   * WASM package when the binary isn't installed (e.g. local dev).
+   */
+  private async decodeHeic(buffer: Buffer): Promise<Buffer> {
+    try {
+      return await this.decodeHeicViaBinary(buffer);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      this.logger.debug('heif-convert binary not found — using WASM decoder');
+      return Buffer.from(
+        await convertHeicToJpegWasm({
+          buffer,
+          format: 'JPEG',
+          quality: 0.9,
+        }),
+      );
+    }
+  }
+
+  /** Runs the system heif-convert binary on a temp file round-trip. */
+  private async decodeHeicViaBinary(buffer: Buffer): Promise<Buffer> {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'fotify-heic-'));
+    const inputPath = join(dir, 'input.heic');
+    const outputPath = join(dir, 'output.jpg');
+    try {
+      await fs.writeFile(inputPath, buffer);
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn('heif-convert', ['-q', '90', inputPath, outputPath]);
+        const stderr: Buffer[] = [];
+        child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
+        child.once('error', reject);
+        child.once('close', (code) => {
+          if (code === 0) resolve();
+          else
+            reject(
+              new Error(
+                `heif-convert exited with code ${code}: ${Buffer.concat(stderr).toString().slice(0, 200)}`,
+              ),
+            );
+        });
+      });
+      return await fs.readFile(outputPath);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   }
 }

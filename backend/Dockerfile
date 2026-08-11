@@ -31,9 +31,12 @@ RUN npm run build
 
 # Final image: no build-essential/python3/gcc, no devDependencies — only the
 # compiled output and the production node_modules built above.
+# libheif-examples provides heif-convert: the fast native HEIC decoder used
+# by PhotoCacheService for iPhone multi-image HEICs that the bundled
+# libheif-in-sharp can't decode (4x faster than the WASM fallback).
 FROM node:20-bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  libheif1 libde265-0 ca-certificates ffmpeg \
+  libheif1 libde265-0 libheif-examples ca-certificates ffmpeg \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package*.json ./
