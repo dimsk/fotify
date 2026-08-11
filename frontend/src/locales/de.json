@@ -158,11 +158,12 @@
     "lensApertureBackfillStarted": "Objektiv-/Blenden-Ermittlung gestartet — läuft im Hintergrund.",
     "paused": "Pausiert",
     "status": {
-      "idle": "idle",
-      "scanning": "scanning",
+      "idle": "bereit",
+      "scanning": "scannt",
+      "scanningCount": "Scanne {{processed}}/{{total}}",
       "backfilling": "Standorte",
       "backfillingLensAperture": "Objektiv/Blende",
-      "error": "error"
+      "error": "Fehler"
     },
     "locationsChecked": "Standorte geprüft",
     "checkLocations": "Standorte prüfen",

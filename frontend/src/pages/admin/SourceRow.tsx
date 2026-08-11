@@ -173,13 +173,20 @@ export function SourceRow({
               color={STATUS_COLOR[displayedStatus]}
               style={{ width: 'max-content' }}
             >
-              {t(
-                displayedStatus === 'backfilling_locations'
-                  ? 'sources.status.backfilling'
-                  : displayedStatus === 'backfilling_lens_aperture'
-                    ? 'sources.status.backfillingLensAperture'
-                    : `sources.status.${displayedStatus}`,
-              )}
+              {displayedStatus === 'scanning' &&
+              scanProgress &&
+              scanProgress.total > 0
+                ? t('sources.status.scanningCount', {
+                    processed: scanProgress.processed,
+                    total: scanProgress.total,
+                  })
+                : t(
+                    displayedStatus === 'backfilling_locations'
+                      ? 'sources.status.backfilling'
+                      : displayedStatus === 'backfilling_lens_aperture'
+                        ? 'sources.status.backfillingLensAperture'
+                        : `sources.status.${displayedStatus}`,
+                  )}
             </Badge>
           </Tooltip>
           {scanProgress && scanProgress.total > 0 && (

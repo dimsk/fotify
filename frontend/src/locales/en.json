@@ -160,6 +160,7 @@
     "status": {
       "idle": "idle",
       "scanning": "scanning",
+      "scanningCount": "Scanning {{processed}}/{{total}}",
       "backfilling": "locations",
       "backfillingLensAperture": "lens/aperture",
       "error": "error"
