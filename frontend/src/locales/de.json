@@ -162,6 +162,7 @@
       "idle": "bereit",
       "scanning": "scannt",
       "scanningCount": "Scanne {{processed}}/{{total}}",
+      "queued": "wartet",
       "backfilling": "Standorte",
       "backfillingLensAperture": "Objektiv/Blende",
       "error": "Fehler"

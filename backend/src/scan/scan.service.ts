@@ -34,6 +34,7 @@ export interface ScanProgressEvent {
     | 'scanning'
     | 'backfilling_locations'
     | 'backfilling_lens_aperture'
+    | 'queued'
     | 'idle'
     | 'error';
   processed: number;
@@ -52,6 +53,9 @@ export class ScanService implements OnApplicationBootstrap {
   private readonly activeScans = new Set<number>();
   private readonly activeLocationBackfills = new Set<number>();
   private readonly activeLensApertureBackfills = new Set<number>();
+  /** Sources waiting for the single global scan slot — see enqueueScan. */
+  private readonly scanQueue: { sourceId: number; quick: boolean }[] = [];
+  private scanRunning = false;
   private readonly progressListeners = new Set<
     (sourceId: number, event: ScanProgressEvent) => void
   >();
@@ -165,16 +169,68 @@ export class ScanService implements OnApplicationBootstrap {
 
   /** Fire-and-forget: caller does not await scan completion. */
   triggerScan(sourceId: number): void {
-    this.scanSource(sourceId).catch((err) => {
-      this.logger.error(`Scan of source ${sourceId} failed`, err);
-    });
+    this.enqueueScan(sourceId, false);
   }
 
   /** Fire-and-forget: caller does not await scan completion. */
   triggerQuickScan(sourceId: number): void {
-    this.quickScanSource(sourceId).catch((err) => {
-      this.logger.error(`Quick scan of source ${sourceId} failed`, err);
+    this.enqueueScan(sourceId, true);
+  }
+
+  /**
+   * Puts a source in the single global scan queue. Only one source scans at
+   * a time across the whole app — concurrent scans on separate sources would
+   * make the HDD seek between two directory trees, which is exactly the
+   * thrash sequential scanning is meant to avoid (and on a spinning-disk NAS
+   * it finishes slower, not faster). Queued sources report status 'queued'
+   * until their turn comes up.
+   */
+  private enqueueScan(sourceId: number, quick: boolean): void {
+    const alreadyWaiting =
+      this.scanQueue.some((entry) => entry.sourceId === sourceId) ||
+      this.activeScans.has(sourceId);
+    if (!alreadyWaiting) {
+      this.scanQueue.push({ sourceId, quick });
+      // Only advertise 'queued' when a scan is actually occupying the slot —
+      // for the common single-source case the scan starts immediately and
+      // would overwrite the queued marker within the same tick anyway.
+      if (this.scanRunning || this.scanQueue.length > 1) {
+        this.markQueued(sourceId);
+      }
+    }
+    void this.processScanQueue();
+  }
+
+  private markQueued(sourceId: number): void {
+    this.subjectFor(sourceId).next({
+      status: 'queued',
+      processed: 0,
+      total: 0,
     });
+    this.sourceRepo
+      .update({ id: sourceId }, { status: 'queued' as Source['status'] })
+      .catch(() => undefined);
+  }
+
+  private async processScanQueue(): Promise<void> {
+    if (this.scanRunning) return;
+    const next = this.scanQueue.shift();
+    if (!next) return;
+    this.scanRunning = true;
+    try {
+      if (next.quick) {
+        await this.quickScanSource(next.sourceId);
+      } else {
+        await this.scanSource(next.sourceId);
+      }
+    } catch (err) {
+      this.logger.error(`Scan of source ${next.sourceId} failed`, err);
+    } finally {
+      this.scanRunning = false;
+      if (this.scanQueue.length > 0) {
+        void this.processScanQueue();
+      }
+    }
   }
 
   /**

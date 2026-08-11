@@ -162,6 +162,7 @@
       "idle": "idle",
       "scanning": "scanning",
       "scanningCount": "Scanning {{processed}}/{{total}}",
+      "queued": "waiting",
       "backfilling": "locations",
       "backfillingLensAperture": "lens/aperture",
       "error": "error"

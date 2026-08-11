@@ -1,5 +1,5 @@
 export type SourceType = 'local' | 'smb';
-export type SourceStatus = 'idle' | 'scanning' | 'error';
+export type SourceStatus = 'idle' | 'queued' | 'scanning' | 'error';
 
 export interface Source {
   id: number;
@@ -63,6 +63,7 @@ export interface ScanProgressEvent {
     | 'scanning'
     | 'backfilling_locations'
     | 'backfilling_lens_aperture'
+    | 'queued'
     | 'idle'
     | 'error';
   processed: number;

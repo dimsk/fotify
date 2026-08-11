@@ -29,6 +29,7 @@ const STATUS_COLOR: Record<
   string
 > = {
   idle: 'teal',
+  queued: 'gray',
   scanning: 'blue',
   backfilling_locations: 'violet',
   backfilling_lens_aperture: 'orange',
@@ -61,6 +62,7 @@ export function SourceRow({
     useState(false);
   const progress = useScanProgress(
     source.status === 'scanning' ||
+      source.status === 'queued' ||
       locationBackfillActive ||
       source.locationBackfillActive ||
       lensApertureBackfillActive ||

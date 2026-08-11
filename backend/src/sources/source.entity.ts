@@ -9,7 +9,7 @@ import {
 import { Photo } from '../photos/photo.entity';
 
 export type SourceType = 'local' | 'smb';
-export type SourceStatus = 'idle' | 'scanning' | 'error';
+export type SourceStatus = 'idle' | 'queued' | 'scanning' | 'error';
 
 @Entity()
 export class Source {
