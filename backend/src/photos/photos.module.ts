@@ -10,6 +10,7 @@ import { ScanModule } from '../scan/scan.module';
 import { PhotosService } from './photos.service';
 import { PhotosController } from './photos.controller';
 import { SlideshowStateService } from './slideshow-state.service';
+import { SlideshowGateway } from './slideshow.gateway';
 import { StatisticsService } from './statistics.service';
 
 @Module({
@@ -25,7 +26,12 @@ import { StatisticsService } from './statistics.service';
     ScanModule,
   ],
   controllers: [PhotosController],
-  providers: [PhotosService, SlideshowStateService, StatisticsService],
+  providers: [
+    PhotosService,
+    SlideshowStateService,
+    SlideshowGateway,
+    StatisticsService,
+  ],
   exports: [PhotosService],
 })
 export class PhotosModule {}

@@ -11,6 +11,10 @@ export default defineConfig({
       '/settings': 'http://localhost:15765',
       '/calendar': 'http://localhost:15765',
       '/weather': 'http://localhost:15765',
+      '/socket.io': {
+        target: 'http://localhost:15765',
+        ws: true,
+      },
     },
   },
 });

@@ -99,6 +99,9 @@ export class SlideshowStateService implements OnApplicationBootstrap {
   private advancing = false;
   private readinessPromise: Promise<void> | null = null;
   private clientPresenceDetectionEnabled = true;
+  private readonly stateListeners = new Set<
+    (state: CurrentSlideResponse) => void
+  >();
 
   constructor(
     @InjectRepository(Photo) private readonly photoRepo: Repository<Photo>,
@@ -112,6 +115,27 @@ export class SlideshowStateService implements OnApplicationBootstrap {
     private readonly photoCacheService: PhotoCacheService,
     private readonly videoCacheService: VideoCacheService,
   ) {}
+
+  /**
+   * Registers a sink (the WebSocket gateway) that is notified whenever the
+   * shared slideshow state changes — every advance, pause, resume, and
+   * video-ready transition, so displays can be pushed instead of polling.
+   */
+  addStateListener(listener: (state: CurrentSlideResponse) => void): void {
+    this.stateListeners.add(listener);
+  }
+
+  private emitState(): void {
+    if (this.stateListeners.size === 0) return;
+    const state = this.getCurrentState();
+    for (const listener of this.stateListeners) {
+      try {
+        listener(state);
+      } catch (error) {
+        this.logger.error('Slideshow state listener failed', error);
+      }
+    }
+  }
 
   async onApplicationBootstrap(): Promise<void> {
     photoDeletions$.subscribe((deletedIds) =>
@@ -166,6 +190,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
       if (this.current !== current || current.startedAt !== null) return;
       current.startedAt = Date.now();
       this.scheduleAdvance(current.imageDurationMs);
+      this.emitState();
     })().finally(() => {
       if (this.readinessPromise === work) this.readinessPromise = null;
     });
@@ -343,6 +368,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
       } else {
         this.current = null;
         this.pausedRemainingMs = null;
+        this.emitState();
       }
     }
   }
@@ -459,6 +485,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
     this.current.startedAt = Date.now() - (this.current.imageDurationMs - remainingMs);
     this.pausedRemainingMs = null;
     this.scheduleAdvance(remainingMs);
+    this.emitState();
   }
 
   private scheduleAdvance(delayMs: number): void {
@@ -627,6 +654,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
       }
 
       await this.fillUpcoming();
+      this.emitState();
 
       // Re-read on every tick so a live settings change (effect/duration)
       // takes effect starting with the very next transition, not before.

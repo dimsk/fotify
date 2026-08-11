@@ -1,4 +1,5 @@
 import { api } from '../api/client';
+import { io, type Socket } from 'socket.io-client';
 import type {
   CollageLayoutType,
   CurrentSlideResponse,
@@ -533,7 +534,7 @@ export class SlideshowEngine {
   private hasRenderedFirst = false;
   private currentSlideId: string | null = null;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
-  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private socket: Socket | null = null;
   private preparedNextKey: string | null = null;
   private readonly clientId = createClientId();
   private readonly layers: [SlideLayerHandle, SlideLayerHandle];
@@ -549,31 +550,48 @@ export class SlideshowEngine {
 
   async start(): Promise<void> {
     this.stopped = false;
-    this.startHeartbeat();
-    await this.sendHeartbeat().catch(() => undefined);
+    this.connectSocket();
+    // Fallback until the socket delivers its first state (and safety net if
+    // the connection drops entirely): one immediate poll, then the socket's
+    // pushes take over — see handleState.
     await this.tick().catch(() => this.scheduleNext(RETRY_AFTER_ERROR_MS));
   }
 
   stop(): void {
     this.stopped = true;
     if (this.pollTimer !== null) clearTimeout(this.pollTimer);
-    if (this.heartbeatTimer !== null) clearInterval(this.heartbeatTimer);
-    this.sendDisconnect();
+    this.socket?.disconnect();
+    this.socket = null;
     for (const layer of this.layers) {
       stopKenBurns(layer);
       pauseLayerVideos(layer);
     }
   }
 
-  private startHeartbeat(): void {
-    if (this.heartbeatTimer !== null) clearInterval(this.heartbeatTimer);
-    this.heartbeatTimer = setInterval(() => {
-      this.sendHeartbeat().catch(() => undefined);
-    }, CLIENT_HEARTBEAT_INTERVAL_MS);
-  }
+  private connectSocket(): void {
+    if (this.socket) return;
+    const socket = io({ transports: ['websocket', 'polling'] });
+    this.socket = socket;
 
-  private sendHeartbeat(): Promise<void> {
-    return api.photos.slideshowHeartbeat(this.clientId);
+    socket.on('connect', () => {
+      socket.emit('slideshow:heartbeat', this.clientId);
+    });
+    socket.on('slideshow:state', (state: CurrentSlideResponse) => {
+      this.renderState(state, performance.now()).catch(() => undefined);
+    });
+    // The server never times a display out while its socket lives, but the
+    // presence map still expects periodic proof of life — reuse the socket
+    // instead of the old HTTP interval.
+    const heartbeat = () => {
+      if (socket.connected) socket.emit('slideshow:heartbeat', this.clientId);
+    };
+    const heartbeatTimer = setInterval(heartbeat, CLIENT_HEARTBEAT_INTERVAL_MS);
+    socket.on('disconnect', () => {
+      clearInterval(heartbeatTimer);
+      // Without the socket we fall back to polling so the slideshow keeps
+      // advancing (slightly less crisply) until the connection is back.
+      this.scheduleNext(RETRY_AFTER_ERROR_MS);
+    });
   }
 
   private sendReady(slideId: string): Promise<void> {
@@ -583,6 +601,13 @@ export class SlideshowEngine {
   private async sendReadyUntilAcknowledged(slideId: string): Promise<void> {
     while (!this.stopped) {
       try {
+        if (this.socket?.connected) {
+          this.socket.emit('slideshow:ready', {
+            clientId: this.clientId,
+            slideId,
+          });
+          return;
+        }
         await api.photos.slideshowReady(this.clientId, slideId);
         return;
       } catch {
@@ -592,15 +617,15 @@ export class SlideshowEngine {
     throw new Error('Slideshow stopped');
   }
 
-  private sendDisconnect(): void {
-    const body = JSON.stringify({ clientId: this.clientId });
-    if (navigator.sendBeacon) {
-      navigator.sendBeacon('/photos/slideshow-disconnect', new Blob([body], { type: 'application/json' }));
+  private sendFailed(slideId: string): void {
+    if (this.socket?.connected) {
+      this.socket.emit('slideshow:failed', { clientId: this.clientId, slideId });
       return;
     }
-    api.photos.slideshowDisconnect(this.clientId).catch(() => undefined);
+    api.photos.slideshowFailed(this.clientId, slideId).catch(() => undefined);
   }
 
+  /** One HTTP poll — used once at startup and as fallback when the socket is down. */
   private async tick(): Promise<void> {
     if (this.stopped) return;
 
@@ -614,12 +639,24 @@ export class SlideshowEngine {
       return;
     }
     if (this.stopped) return;
+    await this.renderState(state, responseReceivedAt);
+  }
+
+  /**
+   * Renders whatever the server says is current — called by the socket on
+   * every pushed state change, and by tick() for the polling fallback.
+   */
+  private async renderState(
+    state: CurrentSlideResponse,
+    responseReceivedAt: number,
+  ): Promise<void> {
+    if (this.stopped) return;
 
     if (state.type !== 'empty' && state.slideId !== this.currentSlideId) {
       // Only adopt the new slideId once it actually rendered — if the
       // images failed to load (or a stale/deleted photo briefly slipped
       // through), we deliberately don't mark it as shown, so the very next
-      // poll retries instead of getting stuck thinking it's already current.
+      // push/poll retries instead of getting stuck thinking it's already current.
       const rendered = await this.showSlide(state, responseReceivedAt);
       if (rendered) {
         this.currentSlideId = state.slideId;
@@ -642,9 +679,7 @@ export class SlideshowEngine {
           state.waitingForPlayback &&
           state.photos.some((photo) => photo.mediaType === 'video')
         ) {
-          await api.photos
-            .slideshowFailed(this.clientId, state.slideId)
-            .catch(() => undefined);
+          this.sendFailed(state.slideId);
         }
         this.scheduleNext(RETRY_AFTER_ERROR_MS);
         return;
@@ -656,12 +691,17 @@ export class SlideshowEngine {
       this.prepareNextSlide(state.next).catch(() => undefined);
     }
 
-    const renderElapsedMs = performance.now() - responseReceivedAt;
-    this.scheduleNext(Math.max(0, state.nextPollInMs - renderElapsedMs));
+    // With a live socket there is nothing to schedule — the server pushes
+    // the next state. Without it, keep polling at the server-suggested time.
+    if (!this.socket?.connected) {
+      const renderElapsedMs = performance.now() - responseReceivedAt;
+      this.scheduleNext(Math.max(0, state.nextPollInMs - renderElapsedMs));
+    }
   }
 
   private scheduleNext(delayMs: number): void {
     if (this.stopped) return;
+    if (this.pollTimer !== null) clearTimeout(this.pollTimer);
     this.pollTimer = setTimeout(() => {
       this.tick().catch(() => this.scheduleNext(RETRY_AFTER_ERROR_MS));
     }, delayMs);

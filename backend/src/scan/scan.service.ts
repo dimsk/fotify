@@ -56,6 +56,9 @@ export class ScanService implements OnApplicationBootstrap {
   private readonly activeScans = new Set<number>();
   private readonly activeLocationBackfills = new Set<number>();
   private readonly activeLensApertureBackfills = new Set<number>();
+  private readonly progressListeners = new Set<
+    (sourceId: number, event: ScanProgressEvent) => void
+  >();
 
   constructor(
     @InjectRepository(Source) private readonly sourceRepo: Repository<Source>,
@@ -67,6 +70,42 @@ export class ScanService implements OnApplicationBootstrap {
     private readonly geocodingService: GeocodingService,
     private readonly videoProcessing: VideoProcessingService,
   ) {}
+
+  /**
+   * Registers a sink (the WebSocket gateway) that receives every scan
+   * progress event, so the admin UI can be pushed instead of holding an SSE
+   * stream open per source.
+   */
+  addProgressListener(
+    listener: (sourceId: number, event: ScanProgressEvent) => void,
+  ): void {
+    this.progressListeners.add(listener);
+  }
+
+  /** The latest known progress for a source — for clients subscribing mid-scan. */
+  async currentProgress(sourceId: number): Promise<ScanProgressEvent> {
+    const source = await this.sourceRepo.findOneBy({ id: sourceId });
+    const running =
+      this.activeScans.has(sourceId) ||
+      this.activeLocationBackfills.has(sourceId) ||
+      this.activeLensApertureBackfills.has(sourceId);
+    return {
+      status: running ? 'scanning' : (source?.status ?? 'idle'),
+      processed: 0,
+      total: 0,
+      error: source?.lastScanError ?? undefined,
+    };
+  }
+
+  private publishProgress(sourceId: number, event: ScanProgressEvent): void {
+    for (const listener of this.progressListeners) {
+      try {
+        listener(sourceId, event);
+      } catch (error) {
+        this.logger.error('Scan progress listener failed', error);
+      }
+    }
+  }
 
   /**
    * A source can be left stuck in status="scanning" if the process died
@@ -1039,6 +1078,12 @@ export class ScanService implements OnApplicationBootstrap {
     let subject = this.progressSubjects.get(sourceId);
     if (!subject) {
       subject = new Subject<ScanProgressEvent>();
+      // Fan every subject emission out to the push listeners (WebSocket
+      // gateway) in addition to any SSE subscribers on this subject.
+      const id = sourceId;
+      subject.subscribe({
+        next: (event) => this.publishProgress(id, event),
+      });
       this.progressSubjects.set(sourceId, subject);
     }
     return subject;
