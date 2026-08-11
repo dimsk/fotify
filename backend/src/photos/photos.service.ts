@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { Photo } from './photo.entity';
 import { PhotoAction } from './photo-action.entity';
 import { CollageLayoutType } from '../settings/settings.entity';
@@ -27,6 +27,18 @@ export type SlidePlan =
   | { type: 'triple'; photos: [SlidePhoto, SlidePhoto, SlidePhoto] }
   | { type: 'collage'; photos: SlidePhoto[]; layout: CollageLayoutType }
   | { type: 'empty'; photos: [] };
+
+export interface RecentMedia {
+  id: number;
+  mediaType: 'image' | 'video';
+  width: number;
+  height: number;
+  orientation: string;
+  capturedAt: string | null;
+  lastShownAt: string;
+  locationCity: string | null;
+  locationCountry: string | null;
+}
 
 @Injectable()
 export class PhotosService {
@@ -59,6 +71,31 @@ export class PhotosService {
       hidden: Boolean(action?.hiddenAt),
       downloadCount: action?.downloadCount ?? 0,
     };
+  }
+
+  /**
+   * The most recently shown photos/videos (by lastShownAt), newest first —
+   * powers the "recently shown" admin page. Collage/triple slides stamp the
+   * same timestamp on every photo in the slide, so they naturally group
+   * together here.
+   */
+  async recentlyShown(limit = 50): Promise<RecentMedia[]> {
+    const photos = await this.photoRepo.find({
+      where: { lastShownAt: Not(IsNull()) },
+      order: { lastShownAt: 'DESC' },
+      take: limit,
+    });
+    return photos.map((photo) => ({
+      id: photo.id,
+      mediaType: photo.mediaType,
+      width: photo.width,
+      height: photo.height,
+      orientation: photo.orientation,
+      capturedAt: photo.capturedAt ? photo.capturedAt.toISOString() : null,
+      lastShownAt: photo.lastShownAt!.toISOString(),
+      locationCity: photo.locationCity,
+      locationCountry: photo.locationCountry,
+    }));
   }
 
   async favorite(photoId: number) {

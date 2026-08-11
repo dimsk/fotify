@@ -92,7 +92,7 @@ export type TransitionEffect =
 export type ShuffleMode = 'all' | 'source-rotation';
 export type PhotoFrameStyle = 'none' | 'thin' | 'polaroid';
 export type PhotoCaptionPosition = 'bottom-left' | 'bottom-right';
-export type GrainEffect = 'none' | 'light' | 'strong';
+export type GrainEffect = 'none' | 'light' | 'strong' | 'extreme';
 export type DateOverlayMode = 'always' | 'sometimes';
 export type WeatherOverlayMode = 'always' | 'sometimes';
 export type Language = 'en' | 'de';
@@ -413,6 +413,18 @@ export interface PhotoStats {
   portrait: number;
   landscape: number;
   square: number;
+}
+
+export interface RecentMedia {
+  id: number;
+  mediaType: 'image' | 'video';
+  width: number;
+  height: number;
+  orientation: string;
+  capturedAt: string | null;
+  lastShownAt: string;
+  locationCity: string | null;
+  locationCountry: string | null;
 }
 
 export interface PhotoActionState {

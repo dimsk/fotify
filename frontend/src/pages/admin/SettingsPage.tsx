@@ -215,6 +215,7 @@ export function SettingsPage() {
     { value: 'none', label: t('options.grain.none') },
     { value: 'light', label: t('options.grain.light') },
     { value: 'strong', label: t('options.grain.strong') },
+    { value: 'extreme', label: t('options.grain.extreme') },
   ];
   const collageLayoutOptions = COLLAGE_LAYOUT_VALUES.map((value) => ({
     value,

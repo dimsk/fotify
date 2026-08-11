@@ -6,6 +6,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
 } from '@nestjs/common';
 import { PhotosService } from './photos.service';
 import { SlideshowStateService } from './slideshow-state.service';
@@ -72,6 +73,14 @@ export class PhotosController {
   @Get('statistics')
   statistics() {
     return this.statisticsService.getStatistics();
+  }
+
+  /** The most recently shown photos/videos for the "recently shown" admin page. */
+  @Get('recent')
+  recent(@Query('limit') limit?: string) {
+    const parsed = Number(limit);
+    const capped = Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, 500) : 50;
+    return this.photosService.recentlyShown(capped);
   }
 
   @Get(':id/actions')

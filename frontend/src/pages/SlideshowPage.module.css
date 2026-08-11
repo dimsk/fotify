@@ -67,6 +67,14 @@
   opacity: 0.1;
 }
 
+.grainExtreme::before {
+  opacity: 0.5;
+}
+
+.grainExtreme::after {
+  opacity: 0.2;
+}
+
 .fx {
   position: absolute;
   inset: 0;

@@ -34,6 +34,7 @@
     "weather": "Weather",
     "calendar": "Calendar",
     "statistics": "Statistics",
+    "recentMedia": "Recently shown",
     "scheduler": "Scheduler",
     "slideshow": "Go to slideshow"
   },
@@ -122,7 +123,8 @@
     "grain": {
       "none": "No grain",
       "light": "Light grain",
-      "strong": "Strong grain"
+      "strong": "Strong grain",
+      "extreme": "Extreme grain"
     },
     "overlayModes": {
       "always": "Always show",
@@ -310,6 +312,14 @@
     "cacheSize": "Cache size",
     "files": "{{count}} files",
     "bySource": "By source"
+  },
+  "recent": {
+    "title": "Recently shown",
+    "empty": "No pictures or videos have been shown yet.",
+    "shownAt": "Shown",
+    "video": "Video",
+    "limit": "Count",
+    "openOriginal": "Open original"
   },
   "scheduler": {
     "title": "Scheduler",

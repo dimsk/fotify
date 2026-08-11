@@ -10,6 +10,7 @@ import type {
   GoogleOAuthConfigStatus,
   PhotoActionState,
   PhotoStats,
+  RecentMedia,
   Settings,
   Source,
   Statistics,
@@ -108,6 +109,8 @@ export const api = {
       }),
     stats: () => request<PhotoStats>('/photos/stats'),
     statistics: () => request<Statistics>('/photos/statistics'),
+    recent: (limit?: number) =>
+      request<RecentMedia[]>(`/photos/recent${limit ? `?limit=${limit}` : ''}`),
     backfillLocations: () =>
       request<void>('/photos/backfill-locations', { method: 'POST' }),
     backfillLensAperture: () =>

@@ -34,6 +34,7 @@
     "weather": "Wetter",
     "calendar": "Kalender",
     "statistics": "Statistik",
+    "recentMedia": "Zuletzt gezeigt",
     "scheduler": "Zeitplan",
     "slideshow": "Zur Diashow"
   },
@@ -122,7 +123,8 @@
     "grain": {
       "none": "Kein Grain",
       "light": "Leichtes Grain",
-      "strong": "Starkes Grain"
+      "strong": "Starkes Grain",
+      "extreme": "Extremes Grain"
     },
     "overlayModes": {
       "always": "Immer anzeigen",
@@ -310,6 +312,14 @@
     "cacheSize": "Cache-Größe",
     "files": "{{count}} Dateien",
     "bySource": "Nach Quelle"
+  },
+  "recent": {
+    "title": "Zuletzt gezeigt",
+    "empty": "Es wurden noch keine Bilder oder Videos gezeigt.",
+    "shownAt": "Gezeigt",
+    "video": "Video",
+    "limit": "Anzahl",
+    "openOriginal": "Original öffnen"
   },
   "scheduler": {
     "title": "Zeitplan",

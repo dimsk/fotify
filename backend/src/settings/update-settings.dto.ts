@@ -52,7 +52,7 @@ const CAPTION_POSITIONS: PhotoCaptionPosition[] = [
   'bottom-left',
   'bottom-right',
 ];
-const GRAIN_EFFECTS: GrainEffect[] = ['none', 'light', 'strong'];
+const GRAIN_EFFECTS: GrainEffect[] = ['none', 'light', 'strong', 'extreme'];
 const DATE_OVERLAY_MODES: DateOverlayMode[] = ['always', 'sometimes'];
 const AUTO_RESCAN_FREQUENCIES: AutoRescanFrequency[] = ['daily', 'weekly'];
 /** Every file format Fotify can import — the settings pick a subset. */

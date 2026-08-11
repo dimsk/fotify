@@ -31,6 +31,7 @@ const GRAIN_CLASS: Record<GrainEffect, string | undefined> = {
   none: undefined,
   light: styles.grainLight,
   strong: styles.grainStrong,
+  extreme: styles.grainExtreme,
 };
 
 const CAPTION_POSITION_CLASS: Record<PhotoCaptionPosition, string> = {

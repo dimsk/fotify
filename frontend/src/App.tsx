@@ -10,6 +10,7 @@ import { SourcesPage } from './pages/admin/SourcesPage';
 import { GeneralPage } from './pages/admin/GeneralPage';
 import { SettingsPage } from './pages/admin/SettingsPage';
 import { StatisticsPage } from './pages/admin/StatisticsPage';
+import { RecentMediaPage } from './pages/admin/RecentMediaPage';
 import { CalendarPage } from './pages/admin/CalendarPage';
 import { DatePage } from './pages/admin/DatePage';
 import { WeatherPage } from './pages/admin/WeatherPage';
@@ -34,6 +35,7 @@ export function App() {
           <Route path="calendar" element={<CalendarPage />} />
           <Route path="scheduler" element={<SchedulerPage />} />
           <Route path="statistics" element={<StatisticsPage />} />
+          <Route path="recent" element={<RecentMediaPage />} />
         </Route>
       </Routes>
     </>

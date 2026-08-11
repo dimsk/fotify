@@ -8,6 +8,7 @@ import {
   CloudSun,
   FolderOpen,
   Film,
+  History,
   SlidersHorizontal,
   Settings as SettingsIcon,
   Tv,
@@ -110,6 +111,13 @@ export function AdminLayout() {
           label={t('nav.statistics')}
           leftSection={<BarChart3 size={18} />}
           active={location.pathname.startsWith('/admin/statistics')}
+        />
+        <NavLink
+          component={Link}
+          to="/admin/recent"
+          label={t('nav.recentMedia')}
+          leftSection={<History size={18} />}
+          active={location.pathname.startsWith('/admin/recent')}
         />
         <NavLink
           component={Link}
