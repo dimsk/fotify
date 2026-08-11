@@ -2,7 +2,6 @@ import { TransitionEffect } from '../settings/settings.entity';
 
 export type EffectName =
   | 'fade'
-  | 'zoom'
   | 'crossfadeBlur'
   | 'crossZoom'
   | 'dipToBlack'
@@ -20,7 +19,6 @@ export type EffectName =
 
 const ALL_EFFECTS: EffectName[] = [
   'fade',
-  'zoom',
   'crossfadeBlur',
   'crossZoom',
   'dipToBlack',

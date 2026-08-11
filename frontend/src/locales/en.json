@@ -58,6 +58,8 @@
     "transitionDuration": "Transition duration (milliseconds)",
     "cinematicChance": "Cinematic-look probability (%)",
     "cinematicChanceDescription": "Randomly applies a cinematic teal-and-orange color look to some pictures and videos. The transition is always a fade in that case.",
+    "kenBurnsChance": "Ken Burns probability (%)",
+    "kenBurnsChanceDescription": "Randomly applies a slow zoom (Ken Burns) to single landscape pictures. Portraits (shown as triples), videos, and collages never zoom.",
     "imageDuration": "Display duration per image (seconds)",
     "playbackOrder": "Playback order",
     "avoidRepeats": "Repeat shown photos only after a full pass",
@@ -90,7 +92,6 @@
   "options": {
     "effects": {
       "fade": "Fade",
-      "zoom": "Zoom / Ken Burns",
       "crossfadeBlur": "Soft-focus crossfade",
       "crossZoom": "Gentle zoom transition",
       "dipToBlack": "Dip to black",

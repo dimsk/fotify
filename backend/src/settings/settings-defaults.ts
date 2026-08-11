@@ -23,6 +23,7 @@ export const DEFAULT_SETTINGS: Partial<Settings> = {
   ],
   transitionDurationMs: 1500,
   cinematicChance: 60,
+  kenBurnsChance: 40,
   imageDurationMs: 25000,
   videoCompatibilityMode: 'normalize',
   videoDurationMode: 'full',

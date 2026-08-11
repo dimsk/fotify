@@ -28,7 +28,6 @@ import type {
 
 const EFFECT_VALUES: TransitionEffect[] = [
   'fade',
-  'zoom',
   'crossfadeBlur',
   'crossZoom',
   'dipToBlack',
@@ -89,6 +88,7 @@ export function SettingsPage() {
   const [imageSeconds, setImageSeconds] = useState(6);
   const [transitionMs, setTransitionMs] = useState(1200);
   const [cinematicChance, setCinematicChance] = useState(0);
+  const [kenBurnsChance, setKenBurnsChance] = useState(0);
   const [avoidRepeats, setAvoidRepeats] = useState(false);
   const [adjacentPortraitTriples, setAdjacentPortraitTriples] = useState(true);
   const [photoFrameStyle, setPhotoFrameStyle] =
@@ -110,6 +110,7 @@ export function SettingsPage() {
     setImageSeconds(Math.round(settings.imageDurationMs / 1000));
     setTransitionMs(settings.transitionDurationMs);
     setCinematicChance(settings.cinematicChance);
+    setKenBurnsChance(settings.kenBurnsChance ?? 40);
     setAvoidRepeats(settings.avoidRepeats);
     setAdjacentPortraitTriples(settings.adjacentPortraitTriples);
     setPhotoFrameStyle(settings.photoFrameStyle);
@@ -184,6 +185,7 @@ export function SettingsPage() {
       imageDurationMs: imageSeconds * 1000,
       transitionDurationMs: transitionMs,
       cinematicChance,
+      kenBurnsChance,
       avoidRepeats,
       adjacentPortraitTriples,
       photoFrameStyle,
@@ -254,6 +256,15 @@ export function SettingsPage() {
             max={100}
             value={cinematicChance}
             onChange={(v) => setCinematicChance(Number(v) || 0)}
+          />
+
+          <NumberInput
+            label={t('settings.kenBurnsChance')}
+            description={t('settings.kenBurnsChanceDescription')}
+            min={0}
+            max={100}
+            value={kenBurnsChance}
+            onChange={(v) => setKenBurnsChance(Number(v) || 0)}
           />
         </Section>
 

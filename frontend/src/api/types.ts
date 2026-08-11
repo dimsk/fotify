@@ -75,7 +75,6 @@ export interface ScanProgressEvent {
 
 export type TransitionEffect =
   | 'fade'
-  | 'zoom'
   | 'crossfadeBlur'
   | 'crossZoom'
   | 'dipToBlack'
@@ -151,6 +150,7 @@ export interface Settings {
   photoFrameStyle: PhotoFrameStyle;
   photoCaptionPosition: PhotoCaptionPosition;
   grainEffect: GrainEffect;
+  kenBurnsChance: number;
   nightModeEnabled: boolean;
   nightModeStart: string;
   nightModeEnd: string;
@@ -204,6 +204,7 @@ export interface UpdateSettingsInput {
   photoFrameStyle?: PhotoFrameStyle;
   photoCaptionPosition?: PhotoCaptionPosition;
   grainEffect?: GrainEffect;
+  kenBurnsChance?: number;
   nightModeEnabled?: boolean;
   nightModeStart?: string;
   nightModeEnd?: string;
@@ -367,7 +368,6 @@ export interface SlidePhoto {
 export type SlideType = 'single' | 'triple' | 'collage' | 'empty';
 export type ResolvedEffect =
   | 'fade'
-  | 'zoom'
   | 'crossfadeBlur'
   | 'crossZoom'
   | 'dipToBlack'
@@ -396,6 +396,7 @@ export interface CurrentSlideResponse {
   collageLayout: CollageLayoutType | null;
   effect: ResolvedEffect;
   lookCinematic: boolean;
+  kenBurns: boolean;
   imageDurationMs: number;
   transitionDurationMs: number;
   nextPollInMs: number;

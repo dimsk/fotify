@@ -2,7 +2,6 @@ import { Column, Entity, PrimaryColumn } from 'typeorm';
 
 export type TransitionEffect =
   | 'fade'
-  | 'zoom'
   | 'crossfadeBlur'
   | 'crossZoom'
   | 'dipToBlack'
@@ -90,6 +89,16 @@ export class Settings {
    */
   @Column({ type: 'int', default: 60 })
   cinematicChance: number;
+
+  /**
+   * Percent chance (0-100) that a single landscape photo gets the Ken Burns
+   * slow-zoom treatment as a persistent per-photo look (not a transition
+   * effect — the transition stays whatever transitionEffects picked).
+   * Portrait photos never get it: they render as triples, where a zoom on
+   * one cell would fight the other two. Videos and collages never get it.
+   */
+  @Column({ type: 'int', default: 40 })
+  kenBurnsChance: number;
 
   @Column({ type: 'int', default: 25000 })
   imageDurationMs: number;

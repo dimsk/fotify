@@ -29,7 +29,6 @@ const TIME_HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 const EFFECTS: TransitionEffect[] = [
   'fade',
-  'zoom',
   'crossfadeBlur',
   'crossZoom',
   'dipToBlack',
@@ -122,6 +121,12 @@ export class UpdateSettingsDto {
   @Min(0)
   @Max(100)
   cinematicChance?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  kenBurnsChance?: number;
 
   @IsOptional()
   @IsInt()

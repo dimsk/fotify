@@ -781,7 +781,9 @@ export class SlideshowEngine {
       if (state.type === 'collage' && state.collageLayout) {
         revealCollageCells(layer, state.collageLayout);
       }
-      startKenBurns(layer, state.imageDurationMs + state.transitionDurationMs);
+      if (state.kenBurns) {
+        startKenBurns(layer, state.imageDurationMs + state.transitionDurationMs);
+      }
       if (
         !(await playLayerVideos(layer, state, () =>
           this.sendReady(state.slideId),
@@ -814,7 +816,7 @@ export class SlideshowEngine {
       return false; // stay on the current slide rather than transition to a broken one
     }
 
-    if (state.effect === 'zoom') {
+    if (state.kenBurns) {
       startKenBurns(
         backLayer,
         state.imageDurationMs + state.transitionDurationMs,

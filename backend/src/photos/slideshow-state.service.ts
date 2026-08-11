@@ -51,6 +51,7 @@ interface CurrentSlide {
   plan: InternalSlidePlan;
   effect: EffectName;
   lookCinematic: boolean;
+  kenBurns: boolean;
   startedAt: number | null;
   imageDurationMs: number;
   transitionDurationMs: number;
@@ -64,6 +65,7 @@ export interface CurrentSlideResponse {
   collageLayout: CollageLayoutType | null;
   effect: EffectName;
   lookCinematic: boolean;
+  kenBurns: boolean;
   imageDurationMs: number;
   transitionDurationMs: number;
   nextPollInMs: number;
@@ -382,6 +384,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
         collageLayout: null,
         effect: 'fade',
         lookCinematic: false,
+        kenBurns: false,
         imageDurationMs: 6000,
         transitionDurationMs: 1200,
         nextPollInMs: 2000,
@@ -407,6 +410,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
       collageLayout: collageLayoutOf(this.current.plan),
       effect: this.current.effect,
       lookCinematic: this.current.lookCinematic,
+      kenBurns: this.current.kenBurns,
       imageDurationMs: this.current.imageDurationMs,
       transitionDurationMs: this.current.transitionDurationMs,
       nextPollInMs,
@@ -633,11 +637,27 @@ export class SlideshowStateService implements OnApplicationBootstrap {
           ? baseDuration * 2
           : baseDuration;
 
+      // Ken Burns (slow zoom) is a per-photo look like the cinematic grade,
+      // not a transition effect — it only makes sense on a single landscape
+      // photo. Portraits render as triples (a zoom on one cell would fight
+      // the other two), videos and collages never get it.
+      const singleLandscapePhoto =
+        plan.type === 'single' && plan.photos[0]?.mediaType === 'image'
+          ? plan.photos[0]
+          : null;
+      const kenBurns =
+        !asleep &&
+        singleLandscapePhoto !== null &&
+        singleLandscapePhoto.orientation === 'landscape' &&
+        Math.random() * 100 <
+          (settings?.kenBurnsChance ?? DEFAULT_SETTINGS.kenBurnsChance!);
+
       this.current = {
         slideId: String(this.tickCounter),
         plan,
         effect,
         lookCinematic,
+        kenBurns,
         startedAt: singleVideo ? null : Date.now(),
         imageDurationMs,
         transitionDurationMs:

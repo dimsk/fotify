@@ -58,6 +58,8 @@
     "transitionDuration": "Übergangsdauer (Millisekunden)",
     "cinematicChance": "Cinematic-Look-Wahrscheinlichkeit (%)",
     "cinematicChanceDescription": "Wendet zufällig auf einen Teil der Bilder und Videos einen filmischen Farblook an (Teal & Orange). Der Übergang ist in diesem Fall immer ein Überblenden.",
+    "kenBurnsChance": "Ken-Burns-Wahrscheinlichkeit (%)",
+    "kenBurnsChanceDescription": "Wendet zufällig auf einzelne Querformat-Bilder einen langsamen Zoom (Ken Burns) an. Hochformate (als Dreiergruppe), Videos und Collagen zoomen nie.",
     "imageDuration": "Anzeigedauer pro Bild (Sekunden)",
     "playbackOrder": "Wiedergabe-Reihenfolge",
     "avoidRepeats": "Bereits gezeigte Bilder erst nach vollem Durchlauf wiederholen",
@@ -90,7 +92,6 @@
   "options": {
     "effects": {
       "fade": "Überblenden (Fade)",
-      "zoom": "Zoom / Ken Burns",
       "crossfadeBlur": "Weichzeichner-Überblendung",
       "crossZoom": "Sanfter Zoom-Übergang",
       "dipToBlack": "Abblenden zu Schwarz",

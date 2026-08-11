@@ -6,7 +6,6 @@ import { createHash } from 'crypto';
 import { extname } from 'path';
 import sharp from 'sharp';
 import * as exifr from 'exifr';
-import pLimit from 'p-limit';
 import { Source } from '../sources/source.entity';
 import { Photo } from '../photos/photo.entity';
 import { Settings } from '../settings/settings.entity';
@@ -30,8 +29,6 @@ const COMMON_VIDEO_EXTENSIONS = new Set([
   '.mkv',
   '.avi',
 ]);
-const SCAN_CONCURRENCY = 6;
-const VIDEO_SCAN_CONCURRENCY = 1;
 
 export interface ScanProgressEvent {
   status:
@@ -226,53 +223,49 @@ export class ScanService implements OnApplicationBootstrap {
 
       let processed = 0;
       const addedFiles: string[] = [];
-      const limit = pLimit(SCAN_CONCURRENCY);
-      const videoLimit = pLimit(VIDEO_SCAN_CONCURRENCY);
       subject.next({
         status: 'scanning',
         processed: 0,
         total: newFiles.length,
       });
 
-      await Promise.all(
-        newFiles.map((file) =>
-          limit(async () => {
-            try {
-              const extension = extname(file.relativePath).toLowerCase();
-              // Empty maps: nothing to claim or prune — every file here is
-              // known-new by path, so the importers only ever hit their
-              // "create" branch (or the moved-file duplicate check).
-              const noExisting = new Map<string, Photo>();
-              if (COMMON_VIDEO_EXTENSIONS.has(extension)) {
-                await videoLimit(() =>
-                  this.importVideo(provider, source, file, noExisting, seenHashes),
-                );
-              } else {
-                await this.importImage(
-                  provider,
-                  source,
-                  file,
-                  noExisting,
-                  seenHashes,
-                );
-              }
-              addedFiles.push(file.relativePath);
-            } catch (err) {
-              this.logger.warn(
-                `Failed to import ${file.relativePath}: ${(err as Error).message}`,
-              );
-            } finally {
-              processed += 1;
-              subject.next({
-                status: 'scanning',
-                processed,
-                total: newFiles.length,
-                currentFile: file.relativePath,
-              });
-            }
-          }),
-        ),
-      );
+      // Sequential, not parallel: one file at a time keeps disk I/O linear
+      // instead of letting several concurrent reads/encodes thrash the HDD
+      // head — matters on spinning-rust NAS drives (e.g. Synology), where
+      // parallel scans actually finish slower than sequential ones.
+      for (const file of newFiles) {
+        try {
+          const extension = extname(file.relativePath).toLowerCase();
+          // Empty maps: nothing to claim or prune — every file here is
+          // known-new by path, so the importers only ever hit their
+          // "create" branch (or the moved-file duplicate check).
+          const noExisting = new Map<string, Photo>();
+          if (COMMON_VIDEO_EXTENSIONS.has(extension)) {
+            await this.importVideo(provider, source, file, noExisting, seenHashes);
+          } else {
+            await this.importImage(
+              provider,
+              source,
+              file,
+              noExisting,
+              seenHashes,
+            );
+          }
+          addedFiles.push(file.relativePath);
+        } catch (err) {
+          this.logger.warn(
+            `Failed to import ${file.relativePath}: ${(err as Error).message}`,
+          );
+        } finally {
+          processed += 1;
+          subject.next({
+            status: 'scanning',
+            processed,
+            total: newFiles.length,
+            currentFile: file.relativePath,
+          });
+        }
+      }
 
       source.status = 'idle';
       await this.sourceRepo.save(source);
@@ -345,57 +338,50 @@ export class ScanService implements OnApplicationBootstrap {
       const seenHashes = new Set(keptPhotos.map((p) => p.fileHash));
 
       let processed = 0;
-      const limit = pLimit(SCAN_CONCURRENCY);
-      const videoLimit = pLimit(VIDEO_SCAN_CONCURRENCY);
       subject.next({
         status: 'scanning',
         processed: 0,
         total: files.length,
       });
 
-      await Promise.all(
-        files.map((file) =>
-          limit(async () => {
-            try {
-              const extension = extname(file.relativePath).toLowerCase();
-              if (COMMON_VIDEO_EXTENSIONS.has(extension)) {
-                await videoLimit(() =>
-                  this.importVideo(
-                    provider,
-                    source,
-                    file,
-                    existingByPath,
-                    seenHashes,
-                  ),
-                );
-              } else {
-                await this.importImage(
-                  provider,
-                  source,
-                  file,
-                  existingByPath,
-                  seenHashes,
-                );
-              }
-            } catch (err) {
-              // The source file was discovered, so an import failure must not
-              // make an existing row look stale and delete it below.
-              existingByPath.delete(file.relativePath);
-              this.logger.warn(
-                `Failed to import ${file.relativePath}: ${(err as Error).message}`,
-              );
-            } finally {
-              processed += 1;
-              subject.next({
-                status: 'scanning',
-                processed,
-                total: files.length,
-                currentFile: file.relativePath,
-              });
-            }
-          }),
-        ),
-      );
+      // Sequential, not parallel — see the quick-scan path above.
+      for (const file of files) {
+        try {
+          const extension = extname(file.relativePath).toLowerCase();
+          if (COMMON_VIDEO_EXTENSIONS.has(extension)) {
+            await this.importVideo(
+              provider,
+              source,
+              file,
+              existingByPath,
+              seenHashes,
+            );
+          } else {
+            await this.importImage(
+              provider,
+              source,
+              file,
+              existingByPath,
+              seenHashes,
+            );
+          }
+        } catch (err) {
+          // The source file was discovered, so an import failure must not
+          // make an existing row look stale and delete it below.
+          existingByPath.delete(file.relativePath);
+          this.logger.warn(
+            `Failed to import ${file.relativePath}: ${(err as Error).message}`,
+          );
+        } finally {
+          processed += 1;
+          subject.next({
+            status: 'scanning',
+            processed,
+            total: files.length,
+            currentFile: file.relativePath,
+          });
+        }
+      }
 
       const stalePhotos = [...existingByPath.values(), ...formatPruned];
       if (stalePhotos.length > 0) {
@@ -825,7 +811,6 @@ export class ScanService implements OnApplicationBootstrap {
         else bySource.set(photo.sourceId, [photo]);
       }
 
-      const limit = pLimit(SCAN_CONCURRENCY);
       for (const [currentSourceId, sourcePhotos] of bySource) {
         const isReservedSource = currentSourceId === reservedSourceId;
         if (
@@ -859,31 +844,28 @@ export class ScanService implements OnApplicationBootstrap {
         const provider = this.fileProviderFactory.forSource(source);
         try {
           await provider.connect();
-          await Promise.all(
-            sourcePhotos.map((photo) =>
-              limit(async () => {
-                try {
-                  const buffer = await provider.readFile(photo.relativePath);
-                  const location = await cpuWorkLimiter(() =>
-                    this.extractLocation(buffer),
-                  );
-                  await this.photoRepo.update(photo.id, location);
-                } catch (err) {
-                  this.logger.warn(
-                    `Location backfill failed for photo ${photo.id}: ${(err as Error).message}`,
-                  );
-                } finally {
-                  processed += 1;
-                  subject.next({
-                    status: 'backfilling_locations',
-                    processed,
-                    total: sourcePhotos.length,
-                    currentFile: photo.relativePath,
-                  });
-                }
-              }),
-            ),
-          );
+          // Sequential reads — same HDD-thrash reasoning as the main scan.
+          for (const photo of sourcePhotos) {
+            try {
+              const buffer = await provider.readFile(photo.relativePath);
+              const location = await cpuWorkLimiter(() =>
+                this.extractLocation(buffer),
+              );
+              await this.photoRepo.update(photo.id, location);
+            } catch (err) {
+              this.logger.warn(
+                `Location backfill failed for photo ${photo.id}: ${(err as Error).message}`,
+              );
+            } finally {
+              processed += 1;
+              subject.next({
+                status: 'backfilling_locations',
+                processed,
+                total: sourcePhotos.length,
+                currentFile: photo.relativePath,
+              });
+            }
+          }
           subject.next({
             status: 'idle',
             processed: sourcePhotos.length,
@@ -990,7 +972,6 @@ export class ScanService implements OnApplicationBootstrap {
         else bySource.set(photo.sourceId, [photo]);
       }
 
-      const limit = pLimit(SCAN_CONCURRENCY);
       for (const [currentSourceId, sourcePhotos] of bySource) {
         const isReservedSource = currentSourceId === reservedSourceId;
         if (
@@ -1024,31 +1005,28 @@ export class ScanService implements OnApplicationBootstrap {
         const provider = this.fileProviderFactory.forSource(source);
         try {
           await provider.connect();
-          await Promise.all(
-            sourcePhotos.map((photo) =>
-              limit(async () => {
-                try {
-                  const buffer = await provider.readFile(photo.relativePath);
-                  const lensAperture = await cpuWorkLimiter(() =>
-                    this.extractLensAperture(buffer),
-                  );
-                  await this.photoRepo.update(photo.id, lensAperture);
-                } catch (err) {
-                  this.logger.warn(
-                    `Lens/aperture backfill failed for photo ${photo.id}: ${(err as Error).message}`,
-                  );
-                } finally {
-                  processed += 1;
-                  subject.next({
-                    status: 'backfilling_lens_aperture',
-                    processed,
-                    total: sourcePhotos.length,
-                    currentFile: photo.relativePath,
-                  });
-                }
-              }),
-            ),
-          );
+          // Sequential reads — same HDD-thrash reasoning as the main scan.
+          for (const photo of sourcePhotos) {
+            try {
+              const buffer = await provider.readFile(photo.relativePath);
+              const lensAperture = await cpuWorkLimiter(() =>
+                this.extractLensAperture(buffer),
+              );
+              await this.photoRepo.update(photo.id, lensAperture);
+            } catch (err) {
+              this.logger.warn(
+                `Lens/aperture backfill failed for photo ${photo.id}: ${(err as Error).message}`,
+              );
+            } finally {
+              processed += 1;
+              subject.next({
+                status: 'backfilling_lens_aperture',
+                processed,
+                total: sourcePhotos.length,
+                currentFile: photo.relativePath,
+              });
+            }
+          }
           subject.next({
             status: 'idle',
             processed: sourcePhotos.length,

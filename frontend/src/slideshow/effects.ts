@@ -93,13 +93,6 @@ async function runFade(ctx: TransitionContext): Promise<void> {
   await Promise.all([outAnim.finished, inAnim.finished]);
 }
 
-async function runZoomCrossfade(ctx: TransitionContext): Promise<void> {
-  // The transition swap itself is a plain crossfade; the distinguishing
-  // continuous scale is driven separately by startKenBurns() for the
-  // incoming layer's entire reign as the front layer.
-  await runFade(ctx);
-}
-
 /** Soft-focus dissolve: outgoing blurs away while incoming resolves into focus. */
 async function runCrossfadeBlur(ctx: TransitionContext): Promise<void> {
   const { incoming, outgoing, transitionDurationMs } = ctx;
@@ -405,7 +398,6 @@ async function runDustParticles(ctx: TransitionContext): Promise<void> {
 
 const EFFECT_RUNNERS: Record<EffectName, (ctx: TransitionContext) => Promise<void>> = {
   fade: runFade,
-  zoom: runZoomCrossfade,
   crossfadeBlur: runCrossfadeBlur,
   crossZoom: runCrossZoom,
   dipToBlack: runDipToBlack,
