@@ -69,6 +69,8 @@ export interface ScanProgressEvent {
   total: number;
   currentFile?: string;
   error?: string;
+  /** Set by the gateway so a shared socket can route events to the right source. */
+  sourceId?: number;
 }
 
 export type TransitionEffect =

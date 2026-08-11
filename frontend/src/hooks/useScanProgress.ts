@@ -23,7 +23,11 @@ export function useScanProgress(
       return;
     }
     const socket = getSocket();
-    const onProgress = (progress: ScanProgressEvent) => setEvent(progress);
+    const onProgress = (progress: ScanProgressEvent) => {
+      // The shared socket is joined to every watched source's room, so it
+      // receives all their events — only adopt the ones for this source.
+      if (progress.sourceId === sourceId) setEvent(progress);
+    };
     const subscribe = () => socket.emit('scan:watch', sourceId);
 
     socket.on('scan:progress', onProgress);

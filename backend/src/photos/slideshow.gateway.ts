@@ -36,7 +36,12 @@ export class SlideshowGateway implements OnGatewayConnection, OnGatewayDisconnec
       this.server?.emit('slideshow:state', state);
     });
     this.scanService.addProgressListener((sourceId, event) => {
-      this.server?.to(`scan:${sourceId}`).emit('scan:progress', event);
+      // Tag with sourceId so clients sharing one socket can tell which
+      // source each event belongs to (the room isolates delivery, but a
+      // socket joined to multiple rooms receives all their events).
+      this.server
+        ?.to(`scan:${sourceId}`)
+        .emit('scan:progress', { ...event, sourceId });
     });
   }
 
@@ -101,7 +106,7 @@ export class SlideshowGateway implements OnGatewayConnection, OnGatewayDisconnec
     // Emit the current status immediately so late subscribers don't wait for
     // the next progress tick (mirrors the old SSE behavior for idle sources).
     const latest = await this.scanService.currentProgress(id);
-    socket.emit('scan:progress', latest);
+    socket.emit('scan:progress', { ...latest, sourceId: id });
   }
 
   @SubscribeMessage('scan:unwatch')
