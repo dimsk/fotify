@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { existsSync } from 'fs';
 import sharp from 'sharp';
+import convertHeicToJpeg from 'heic-convert';
 import { Photo } from '../photos/photo.entity';
 import { Source } from '../sources/source.entity';
 import { FileProviderFactory } from '../file-providers/file-provider.factory';
@@ -71,13 +72,35 @@ export class PhotoCacheService {
     // warm-fetches from the slideshow's lookahead queue can't spike CPU.
     // The (potentially slow, e.g. over SMB) file read above stays outside
     // the limiter so it doesn't hold up that budget while waiting on I/O.
-    await cpuWorkLimiter(() =>
-      sharp(buffer)
-        .rotate()
-        .resize(CACHE_MAX_DIMENSION, CACHE_MAX_DIMENSION, { fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: CACHE_JPEG_QUALITY })
-        .toFile(cachedDisplayPath),
-    );
+    await cpuWorkLimiter(async () => {
+      const pipeline = (input: Buffer | string) =>
+        sharp(input)
+          .rotate()
+          .resize(CACHE_MAX_DIMENSION, CACHE_MAX_DIMENSION, {
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .jpeg({ quality: CACHE_JPEG_QUALITY });
+      try {
+        await pipeline(buffer).toFile(cachedDisplayPath);
+      } catch (error) {
+        // iPhone multi-image HEICs (Live Photos, depth maps) fail libheif's
+        // bundled decode in two ways: the iref security limit (recoverable
+        // via `unlimited`), and a `bad seek` decoder regression in the
+        // bundled libheif 1.23.x (not recoverable via sharp options).
+        // heic-convert ships libheif 1.19 as WASM — decodes them fine, runs
+        // inside the Docker image with no system packages.
+        const message = (error as Error).message;
+        if (!/heif|bad seek|corrupt header|security limit/i.test(message)) {
+          throw error;
+        }
+        this.logger.log(
+          `sharp could not decode ${photo.relativePath} (${message.slice(0, 60)}) — falling back to heic-convert`,
+        );
+        const decoded = await convertHeicToJpeg(buffer);
+        await pipeline(decoded).toFile(cachedDisplayPath);
+      }
+    });
 
     photo.cachedDisplayPath = cachedDisplayPath;
     photo.cachedAt = new Date();

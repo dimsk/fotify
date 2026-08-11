@@ -472,7 +472,7 @@ export class ScanService implements OnApplicationBootstrap {
         return; // identical content already imported from another path this scan
       }
 
-      const metadata = await sharp(buffer).metadata();
+      const metadata = await this.readImageMetadata(buffer, relativePath);
       if (!metadata.width || !metadata.height) {
         throw new Error('Could not determine image dimensions');
       }
@@ -667,6 +667,31 @@ export class ScanService implements OnApplicationBootstrap {
       notifyPhotosDeleted([replacedAtTarget.id]);
       await this.cacheStorage.delete(replacedAtTarget.cachedDisplayPath);
       seenHashes.delete(replacedAtTarget.fileHash);
+    }
+  }
+
+  /**
+   * Reads image dimensions via sharp. iPhone HEICs with derived images
+   * (Live Photos, depth maps, bursts) pack 30-50+ references into the iref
+   * box, which trips libheif's default security limit of 16 and makes the
+   * plain call fail with "corrupt header: heif: Invalid input". The files
+   * are valid — retrying with `unlimited` lifts that limit using the same
+   * bundled libvips/libheif, no external converter needed (works inside the
+   * Docker image, e.g. on a Synology NAS, without extra packages).
+   */
+  private async readImageMetadata(
+    buffer: Buffer,
+    relativePath: string,
+  ): Promise<{ width?: number; height?: number; orientation?: number }> {
+    try {
+      return await sharp(buffer).metadata();
+    } catch (error) {
+      const message = (error as Error).message;
+      if (!/heif|iref|security limit/i.test(message)) throw error;
+      this.logger.log(
+        `sharp rejected ${relativePath} (libheif security limit) — retrying with unlimited input`,
+      );
+      return sharp(buffer, { unlimited: true }).metadata();
     }
   }
 
