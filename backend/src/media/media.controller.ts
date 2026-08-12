@@ -200,22 +200,38 @@ export class MediaController {
     const { size } = await fs.stat(path);
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Content-Type', mimeType);
+
+    // A large highWaterMark matters a lot for video: the default 64KB chunk
+    // size turns a multi-MB/s stream into thousands of syscalls + event-loop
+    // ticks + TCP sends per second. On a low-power server that overhead is
+    // enough to make delivery uneven and the browser buffer stutter, even
+    // though the raw bandwidth is fine. 1MB chunks cut that overhead ~16x.
+    const streamOptions = { highWaterMark: 1024 * 1024 };
+
+    let stream;
     if (!range) {
       res.setHeader('Content-Length', size);
-      return createReadStream(path).pipe(res);
+      stream = createReadStream(path, streamOptions);
+    } else {
+      const parsed = parseByteRange(range, size);
+      if (!parsed) {
+        res.status(416);
+        res.setHeader('Content-Range', `bytes */${size}`);
+        return res.end();
+      }
+      const { start, end } = parsed;
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
+      res.setHeader('Content-Length', end - start + 1);
+      stream = createReadStream(path, { ...streamOptions, start, end });
     }
 
-    const parsed = parseByteRange(range, size);
-    if (!parsed) {
-      res.status(416);
-      res.setHeader('Content-Range', `bytes */${size}`);
-      return res.end();
-    }
-    const { start, end } = parsed;
-    res.status(206);
-    res.setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
-    res.setHeader('Content-Length', end - start + 1);
-    return createReadStream(path, { start, end }).pipe(res);
+    // Stop reading from disk the moment the browser goes away (seek/aborts
+    // issue a fresh range request and close the previous one) instead of
+    // streaming the rest of the file into the void.
+    res.on('close', () => stream.destroy());
+    stream.on('error', () => stream.destroy());
+    return stream.pipe(res);
   }
 
   private async recordDownload(photoId: number): Promise<void> {
