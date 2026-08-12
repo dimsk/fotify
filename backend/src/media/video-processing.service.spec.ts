@@ -1,6 +1,10 @@
 import { createHash } from 'crypto';
 import { Readable, Writable } from 'stream';
-import { mimeTypeFor, VideoProcessingService } from './video-processing.service';
+import {
+  mimeTypeFor,
+  VideoProcessingService,
+  videoIdentityHash,
+} from './video-processing.service';
 
 describe('mimeTypeFor', () => {
   it('maps supported video extensions case-insensitively', () => {
@@ -37,5 +41,34 @@ describe('VideoProcessingService.hashStream', () => {
     const payload = Buffer.from('fotify-video');
     const expected = createHash('sha256').update(payload).digest('hex');
     await expect(service.hashStream(Readable.from(payload))).resolves.toBe(expected);
+  });
+});
+
+describe('videoIdentityHash', () => {
+  it('is a stable sha256-hex function of size and mtime', () => {
+    const mtime = new Date('2026-05-03T13:01:00Z');
+    const hash = videoIdentityHash(115767536, mtime);
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(videoIdentityHash(115767536, new Date(mtime))).toBe(hash);
+  });
+
+  it('changes when size or mtime change', () => {
+    const mtime = new Date('2026-05-03T13:01:00Z');
+    const base = videoIdentityHash(115767536, mtime);
+    expect(videoIdentityHash(115767537, mtime)).not.toBe(base);
+    expect(
+      videoIdentityHash(115767536, new Date(mtime.getTime() + 1000)),
+    ).not.toBe(base);
+  });
+
+  it('never collides with a content hash of the size+mtime string', () => {
+    // Guard: the version prefix must make identity hashes disjoint from any
+    // plain content SHA-256 of the same inputs.
+    const mtime = new Date('2026-05-03T13:01:00Z');
+    const naive = createHash('sha256')
+      .update(String(115767536))
+      .update(String(mtime.getTime()))
+      .digest('hex');
+    expect(videoIdentityHash(115767536, mtime)).not.toBe(naive);
   });
 });

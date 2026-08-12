@@ -27,6 +27,28 @@ const TEMP_PREFIX = 'fotify-video-';
 /** Temp dirs from scans killed mid-flight (crash, restart) are fair game after this. */
 const STALE_TEMP_AGE_MS = 60 * 60 * 1000;
 
+/**
+ * Videos bigger than this are not imported at all: hashing/probing them
+ * would hold the sequential scan hostage (a 1 TiB file needs >1h just to
+ * read), and a photo-frame slideshow can't sensibly play them anyway.
+ */
+export const MAX_VIDEO_FILE_SIZE_BYTES = 50 * 1024 * 1024 * 1024; // 50 GiB
+
+/**
+ * Derives the video's identity hash from its size and modification time
+ * instead of reading the file's bytes — a full-content SHA-256 forces the
+ * scan to stream every video end-to-end (over the network for SMB sources),
+ * which turns a metadata pass into an hours-long copy job. Format matches a
+ * SHA-256 hex digest so it stays compatible with rows hashed the old way.
+ */
+export function videoIdentityHash(size: number, modifiedAt: Date): string {
+  return createHash('sha256')
+    .update('size-mtime-v1')
+    .update(String(size))
+    .update(String(modifiedAt.getTime()))
+    .digest('hex');
+}
+
 @Injectable()
 export class VideoProcessingService {
   private readonly logger = new Logger(VideoProcessingService.name);

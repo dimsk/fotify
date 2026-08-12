@@ -17,7 +17,11 @@ import { GeocodingService } from './geocoding.service';
 import { WalkedFile, walkMediaFiles } from './directory-walker';
 import { computeDisplayDimensions } from './exif-orientation.util';
 import { notifyPhotosDeleted } from '../common/photo-deletion.notifier';
-import { VideoProcessingService } from '../media/video-processing.service';
+import {
+  MAX_VIDEO_FILE_SIZE_BYTES,
+  VideoProcessingService,
+  videoIdentityHash,
+} from '../media/video-processing.service';
 
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.heic', '.heif']);
 const COMMON_VIDEO_EXTENSIONS = new Set([
@@ -601,14 +605,28 @@ export class ScanService implements OnApplicationBootstrap {
       return;
     }
 
-    // Hash and probe run as two independent streaming passes straight off the
-    // provider — no temp copy on disk, regardless of source type. For local
-    // files that's just two sequential reads; for SMB the bytes flow through
-    // ffprobe's stdin (probeStream) so even multi-GB clips never materialize
-    // in /tmp.
-    const fileHash = await this.videoProcessing.hashStream(
-      provider.createReadStream(file.relativePath),
-    );
+    // Monster files would hold the sequential scan hostage for hours and
+    // can't be played back on a photo frame anyway — skip them outright.
+    if (file.size !== null && file.size > MAX_VIDEO_FILE_SIZE_BYTES) {
+      this.logger.log(
+        `Skipping oversized video (${Math.round(file.size / 1024 ** 3)} GiB): ${file.relativePath}`,
+      );
+      if (existing) {
+        existingByPath.delete(file.relativePath);
+      }
+      return;
+    }
+
+    // Identity comes from size+mtime (no content read — a full-file hash
+    // would stream every video end-to-end and turn the scan into a copy
+    // job). Only ffprobe still reads the file, straight off the provider
+    // stream (via stdin), so nothing materializes in /tmp.
+    const fileHash =
+      file.size !== null && file.modifiedAt !== null
+        ? videoIdentityHash(file.size, file.modifiedAt)
+        : await this.videoProcessing.hashStream(
+            provider.createReadStream(file.relativePath),
+          );
     const metadata = await this.videoProcessing.probeStream(
       await provider.createReadStream(file.relativePath),
       file.relativePath,

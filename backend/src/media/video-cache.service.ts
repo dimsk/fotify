@@ -13,6 +13,7 @@ import { CacheStorageService } from '../scan/cache-storage.service';
 import {
   mimeTypeFor,
   VideoProcessingService,
+  videoIdentityHash,
 } from './video-processing.service';
 
 export interface CachedVideo {
@@ -131,7 +132,17 @@ export class VideoCacheService {
         provider,
         video.relativePath,
         async (inputPath, currentHash) => {
-          if (currentHash !== video.fileHash) {
+          // Videos are identified by size+mtime (see ScanService.importVideo),
+          // so the content hash from withMaterializedFile can never match —
+          // verify identity the same way the scan does instead.
+          if (
+            video.sourceFileSize !== null &&
+            video.sourceModifiedAt !== null &&
+            videoIdentityHash(video.sourceFileSize, video.sourceModifiedAt) ===
+              video.fileHash
+          ) {
+            // unchanged — identity confirmed without reading the file
+          } else if (currentHash !== video.fileHash) {
             await this.photoRepo.update(video.id, {
               sourceFileSize: null,
               sourceModifiedAt: null,
