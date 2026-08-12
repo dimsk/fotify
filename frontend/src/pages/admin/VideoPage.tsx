@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Card, NumberInput, Select, Stack, Text, Title } from '@mantine/core';
+import { Button, Card, NumberInput, Select, Stack, Switch, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Film } from 'lucide-react';
@@ -22,6 +22,7 @@ export function VideoPage() {
   const [durationMode, setDurationMode] =
     useState<VideoDurationMode>('full');
   const [maxSeconds, setMaxSeconds] = useState(30);
+  const [randomSegmentEnabled, setRandomSegmentEnabled] = useState(false);
   const hydrated = useRef(false);
 
   useEffect(() => {
@@ -30,6 +31,7 @@ export function VideoPage() {
     setCompatibilityMode(settings.videoCompatibilityMode);
     setDurationMode(settings.videoDurationMode);
     setMaxSeconds(Math.round(settings.videoMaxDurationMs / 1000));
+    setRandomSegmentEnabled(settings.videoRandomSegmentEnabled);
   }, [settings]);
 
   const updateMutation = useMutation({
@@ -57,7 +59,6 @@ export function VideoPage() {
   const durationOptions: { value: VideoDurationMode; label: string }[] = [
     { value: 'full', label: t('video.durationFull') },
     { value: 'photo', label: t('video.durationPhoto') },
-    { value: 'random-segment', label: t('video.durationRandomSegment') },
     { value: 'capped', label: t('video.durationCapped') },
   ];
 
@@ -95,6 +96,12 @@ export function VideoPage() {
             onChange={(value) => setMaxSeconds(Number(value) || 1)}
             disabled={durationMode !== 'capped'}
           />
+          <Switch
+            label={t('video.randomSegment')}
+            description={t('video.randomSegmentDescription')}
+            checked={randomSegmentEnabled}
+            onChange={(e) => setRandomSegmentEnabled(e.currentTarget.checked)}
+          />
           <Text size="xs" c="dimmed">
             {t('video.mutedNotice')}
           </Text>
@@ -109,6 +116,7 @@ export function VideoPage() {
             videoCompatibilityMode: compatibilityMode,
             videoDurationMode: durationMode,
             videoMaxDurationMs: maxSeconds * 1000,
+            videoRandomSegmentEnabled: randomSegmentEnabled,
           })
         }
         loading={updateMutation.isPending}

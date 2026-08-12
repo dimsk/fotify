@@ -61,6 +61,8 @@
     "kenBurnsChance": "Ken-Burns-Wahrscheinlichkeit (%)",
     "kenBurnsChanceDescription": "Wendet zufällig auf einzelne Querformat-Bilder einen langsamen Zoom (Ken Burns) an. Hochformate (als Dreiergruppe), Videos und Collagen zoomen nie.",
     "imageDuration": "Anzeigedauer pro Bild (Sekunden)",
+    "playbackMode": "Wiedergabemodus",
+    "playbackModeDescription": "Legt fest, welche Medienarten in der Diashow gezeigt werden.",
     "playbackOrder": "Wiedergabe-Reihenfolge",
     "avoidRepeats": "Bereits gezeigte Bilder erst nach vollem Durchlauf wiederholen",
     "avoidRepeatsDescription": "Wenn aktiv, werden noch nie gezeigte Bilder bevorzugt; bereits gezeigte kommen erst wieder dran, wenn alle einmal gezeigt wurden.",
@@ -111,6 +113,11 @@
     "shuffle": {
       "all": "Alle Ordner mischen",
       "sourceRotation": "Ordner nacheinander (je 1 Stunde)"
+    },
+    "playbackMode": {
+      "all": "Videos und Bilder",
+      "imagesOnly": "Nur Bilder",
+      "videosOnly": "Nur Videos"
     },
     "frames": {
       "none": "Kein Rahmen",
@@ -208,12 +215,13 @@
     "compatibilityDirectCommon": "Gängige Formate direkt wiedergeben",
     "compatibilityNormalize": "Gängige Formate in H.264-MP4 umwandeln",
     "duration": "Wiedergabedauer",
-    "durationDescription": "Videos vollständig, für die Bilddauer, als zufälligen Ausschnitt in Bildlänge oder bis zu einer Höchstdauer abspielen.",
+    "durationDescription": "Videos vollständig, für die Bilddauer oder bis zu einer Höchstdauer abspielen. Ein kürzeres Video beendet die Folie immer mit seinem Ende.",
     "durationFull": "Ganzes Video abspielen",
     "durationPhoto": "Bilddauer verwenden",
-    "durationRandomSegment": "Zufälliger Ausschnitt in Bilddauer",
     "durationCapped": "Videodauer begrenzen",
     "maxDuration": "Höchstdauer (Sekunden)",
+    "randomSegment": "Zufälliger Ausschnitt",
+    "randomSegmentDescription": "Startet längere Videos an einer zufälligen Position und spielt einen Ausschnitt der eingestellten Dauer, statt immer von vorne zu beginnen.",
     "mutedNotice": "Videos werden immer stumm abgespielt, damit die unbeaufsichtigte Wiedergabe zuverlässig startet.",
     "rescanNotice": "Nach einem Fotify-Upgrade die Quellen neu scannen, um vorhandene Videodateien zu erfassen.",
     "saved": "Video-Einstellungen gespeichert",

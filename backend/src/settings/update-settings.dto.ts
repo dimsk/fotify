@@ -19,6 +19,7 @@ import {
   Language,
   PhotoCaptionPosition,
   PhotoFrameStyle,
+  PlaybackMode,
   ShuffleMode,
   TransitionEffect,
   VideoCompatibilityMode,
@@ -46,6 +47,7 @@ const EFFECTS: TransitionEffect[] = [
   'random',
 ];
 const SHUFFLE_MODES: ShuffleMode[] = ['all', 'source-rotation'];
+const PLAYBACK_MODES: PlaybackMode[] = ['all', 'images-only', 'videos-only'];
 const FRAME_STYLES: PhotoFrameStyle[] = ['none', 'thin', 'polaroid'];
 const CAPTION_POSITIONS: PhotoCaptionPosition[] = [
   'bottom-left',
@@ -74,7 +76,6 @@ const VIDEO_DURATION_MODES: VideoDurationMode[] = [
   'full',
   'photo',
   'capped',
-  'random-segment',
 ];
 const COLLAGE_LAYOUTS: CollageLayoutSelection[] = [
   'heartCutout',
@@ -134,6 +135,10 @@ export class UpdateSettingsDto {
   imageDurationMs?: number;
 
   @IsOptional()
+  @IsIn(PLAYBACK_MODES)
+  playbackMode?: PlaybackMode;
+
+  @IsOptional()
   @IsIn(VIDEO_COMPATIBILITY_MODES)
   videoCompatibilityMode?: VideoCompatibilityMode;
 
@@ -146,6 +151,10 @@ export class UpdateSettingsDto {
   @Min(1000)
   @Max(600000)
   videoMaxDurationMs?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  videoRandomSegmentEnabled?: boolean;
 
   @IsOptional()
   @IsBoolean()

@@ -92,6 +92,7 @@ export type TransitionEffect =
   | 'dustParticles'
   | 'random';
 export type ShuffleMode = 'all' | 'source-rotation';
+export type PlaybackMode = 'all' | 'images-only' | 'videos-only';
 export type PhotoFrameStyle = 'none' | 'thin' | 'polaroid';
 export type PhotoCaptionPosition = 'bottom-left' | 'bottom-right';
 export type GrainEffect = 'none' | 'light' | 'strong' | 'extreme';
@@ -107,8 +108,7 @@ export type VideoCompatibilityMode =
 export type VideoDurationMode =
   | 'full'
   | 'photo'
-  | 'capped'
-  | 'random-segment';
+  | 'capped';
 export type WeatherIcon =
   | 'sun'
   | 'moon'
@@ -142,9 +142,11 @@ export interface Settings {
   transitionDurationMs: number;
   cinematicChance: number;
   imageDurationMs: number;
+  playbackMode: PlaybackMode;
   videoCompatibilityMode: VideoCompatibilityMode;
   videoDurationMode: VideoDurationMode;
   videoMaxDurationMs: number;
+  videoRandomSegmentEnabled: boolean;
   avoidRepeats: boolean;
   adjacentPortraitTriples: boolean;
   shuffleMode: ShuffleMode;
@@ -196,9 +198,11 @@ export interface UpdateSettingsInput {
   transitionDurationMs?: number;
   cinematicChance?: number;
   imageDurationMs?: number;
+  playbackMode?: PlaybackMode;
   videoCompatibilityMode?: VideoCompatibilityMode;
   videoDurationMode?: VideoDurationMode;
   videoMaxDurationMs?: number;
+  videoRandomSegmentEnabled?: boolean;
   avoidRepeats?: boolean;
   adjacentPortraitTriples?: boolean;
   shuffleMode?: ShuffleMode;

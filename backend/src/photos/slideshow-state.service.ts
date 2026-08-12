@@ -3,7 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, SelectQueryBuilder } from 'typeorm';
 import { Photo } from './photo.entity';
 import { PhotoAction } from './photo-action.entity';
-import { CollageLayoutType, Settings } from '../settings/settings.entity';
+import {
+  CollageLayoutType,
+  PlaybackMode,
+  Settings,
+} from '../settings/settings.entity';
 import { Source } from '../sources/source.entity';
 import { QueuedSlide } from './queued-slide.entity';
 import { PhotoCacheService } from '../media/photo-cache.service';
@@ -101,6 +105,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
   private advancing = false;
   private readinessPromise: Promise<void> | null = null;
   private clientPresenceDetectionEnabled = true;
+  private lastPlaybackMode: PlaybackMode | null = null;
   private readonly stateListeners = new Set<
     (state: CurrentSlideResponse) => void
   >();
@@ -312,6 +317,16 @@ export class SlideshowStateService implements OnApplicationBootstrap {
   }
 
   /**
+   * Drops every buffered (not yet shown) slide and its persisted queue rows.
+   * Used when the eligible media pool changes wholesale (playbackMode), where
+   * the whole lookahead is suspect rather than individual slides.
+   */
+  private async purgeUpcoming(): Promise<void> {
+    this.upcoming = [];
+    await this.queuedSlideRepo.clear();
+  }
+
+  /**
    * Purges any buffered slide that references a now-deleted photo, so it
    * can never be served — without this, a source deletion (or a rescan
    * pruning/replacing a file) could leave a stale Photo reference sitting
@@ -520,6 +535,19 @@ export class SlideshowStateService implements OnApplicationBootstrap {
         settings?.clientPresenceDetectionEnabled ?? true;
       const asleep = this.isNightModeActive(settings);
 
+      // When the media-type pool changes, the pre-generated lookahead no
+      // longer matches what's allowed on screen — purge it and let the
+      // re-planned slides respect the new mode immediately.
+      const playbackMode =
+        settings?.playbackMode ?? DEFAULT_SETTINGS.playbackMode!;
+      if (this.lastPlaybackMode !== playbackMode) {
+        const changed = this.lastPlaybackMode !== null;
+        this.lastPlaybackMode = playbackMode;
+        if (changed) {
+          await this.purgeUpcoming();
+        }
+      }
+
       // During night mode the lookahead buffer is deliberately left alone —
       // nothing is shifted out of it — so the slideshow resumes with the
       // exact same upcoming order once the window ends, rather than losing
@@ -610,25 +638,6 @@ export class SlideshowStateService implements OnApplicationBootstrap {
         plan.type === 'single' && plan.photos[0]?.mediaType === 'video'
           ? plan.photos[0]
           : null;
-      const durationMode =
-        settings?.videoDurationMode ?? DEFAULT_SETTINGS.videoDurationMode!;
-      if (singleVideo && durationMode === 'random-segment') {
-        const maxOffset = Math.max(
-          0,
-          (singleVideo.durationMs ?? baseDuration) - baseDuration,
-        );
-        if (
-          videoSegmentDurationMs !== baseDuration ||
-          videoStartOffsetMs > maxOffset
-        ) {
-          videoStartOffsetMs = this.randomVideoStartOffset(
-            plan,
-            baseDuration,
-          );
-        }
-      } else {
-        videoStartOffsetMs = 0;
-      }
       const imageDurationMs = singleVideo
         ? this.videoSlideDuration(singleVideo, settings, baseDuration)
         : videoPreparationFailed
@@ -636,6 +645,31 @@ export class SlideshowStateService implements OnApplicationBootstrap {
           : plan.type === 'collage'
           ? baseDuration * 2
           : baseDuration;
+
+      // A random segment starts a long video partway through and shows it
+      // for the slide's display duration. The buffered offset/segment only
+      // stays valid while the configured segment length (the slide's
+      // duration) hasn't changed — if it has, re-roll.
+      const randomSegment =
+        settings?.videoRandomSegmentEnabled ??
+        DEFAULT_SETTINGS.videoRandomSegmentEnabled!;
+      if (singleVideo && randomSegment) {
+        const maxOffset = Math.max(
+          0,
+          (singleVideo.durationMs ?? imageDurationMs) - imageDurationMs,
+        );
+        if (
+          videoSegmentDurationMs !== imageDurationMs ||
+          videoStartOffsetMs > maxOffset
+        ) {
+          videoStartOffsetMs = this.randomVideoStartOffset(
+            plan,
+            imageDurationMs,
+          );
+        }
+      } else {
+        videoStartOffsetMs = 0;
+      }
 
       // Ken Burns (slow zoom) is a per-photo look like the cinematic grade,
       // not a transition effect — it only makes sense on a single landscape
@@ -662,11 +696,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
         imageDurationMs,
         transitionDurationMs:
           settings?.transitionDurationMs ?? DEFAULT_SETTINGS.transitionDurationMs!,
-        videoStartOffsetMs:
-          singleVideo &&
-          durationMode === 'random-segment'
-            ? videoStartOffsetMs
-            : 0,
+        videoStartOffsetMs: singleVideo && randomSegment ? videoStartOffsetMs : 0,
       };
 
       if (plan.photos.length > 0 && !singleVideo) {
@@ -710,18 +740,29 @@ export class SlideshowStateService implements OnApplicationBootstrap {
 
   private async fillUpcoming(): Promise<void> {
     const settings = await this.settingsRepo.findOneBy({ id: 1 });
-    const imageDurationMs =
+    const baseDuration =
       settings?.imageDurationMs ?? DEFAULT_SETTINGS.imageDurationMs!;
-    const useRandomSegment =
-      (settings?.videoDurationMode ?? DEFAULT_SETTINGS.videoDurationMode!) ===
-      'random-segment';
+    const randomSegment =
+      settings?.videoRandomSegmentEnabled ??
+      DEFAULT_SETTINGS.videoRandomSegmentEnabled!;
     while (this.upcoming.length < LOOKAHEAD_DEPTH) {
       const plan = await this.pickSlidePlan();
       if (plan.type === 'empty') break; // nothing available right now — stop trying
-      const videoStartOffsetMs = useRandomSegment
-        ? this.randomVideoStartOffset(plan, imageDurationMs)
-        : 0;
-      const videoSegmentDurationMs = useRandomSegment ? imageDurationMs : null;
+      // The segment length is the slide's actual display duration, not the
+      // global image duration: a video shorter than the configured slot ends
+      // the slide when it ends (see videoSlideDuration), so a longer "segment"
+      // would run past the natural end and freeze on the last frame.
+      const isSingleVideo =
+        plan.type === 'single' && plan.photos[0]?.mediaType === 'video';
+      const displayDurationMs = isSingleVideo
+        ? this.videoSlideDuration(plan.photos[0], settings, baseDuration)
+        : baseDuration;
+      const videoStartOffsetMs =
+        isSingleVideo && randomSegment
+          ? this.randomVideoStartOffset(plan, displayDurationMs)
+          : 0;
+      const videoSegmentDurationMs =
+        isSingleVideo && randomSegment ? displayDurationMs : null;
       const queuedSlideId = await this.persistSlide(
         plan,
         videoStartOffsetMs,
@@ -806,6 +847,16 @@ export class SlideshowStateService implements OnApplicationBootstrap {
     const mp4Only =
       (settings?.videoCompatibilityMode ??
         DEFAULT_SETTINGS.videoCompatibilityMode!) === 'direct-mp4';
+    const playbackMode =
+      settings?.playbackMode ?? DEFAULT_SETTINGS.playbackMode!;
+
+    // Videos-only is its own simple path: every video renders as a single
+    // slide, so the whole single/triple/collage weighting below is moot.
+    if (playbackMode === 'videos-only') {
+      const [video] = await this.randomVideos(1, sourceId, avoidRepeats, mp4Only);
+      if (!video) return { type: 'empty', photos: [] };
+      return { type: 'single', photos: [video] };
+    }
 
     // Collage is a probability-gated pre-check, not a third term in the
     // single/triple weighting below — that formula balances the
@@ -833,7 +884,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
 
     const [portraitCount, singleCount] = await Promise.all([
       this.countByOrientation('portrait', sourceId),
-      this.countSingleEligible(sourceId, mp4Only),
+      this.countSingleEligible(sourceId, mp4Only, playbackMode),
     ]);
 
     if (portraitCount === 0 && singleCount === 0) {
@@ -864,6 +915,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
         sourceId,
         avoidRepeats,
         mp4Only,
+        playbackMode,
       );
       return { type: 'single', photos: [photo] };
     }
@@ -952,12 +1004,18 @@ export class SlideshowStateService implements OnApplicationBootstrap {
   private countSingleEligible(
     sourceId: number | null,
     mp4Only: boolean,
+    playbackMode: PlaybackMode,
   ): Promise<number> {
+    const includeVideos = playbackMode !== 'images-only';
     const qb = this.photoRepo
       .createQueryBuilder('photo')
       .where(
-        `((photo.mediaType = 'video' AND (:mp4Only = 0 OR LOWER(photo.relativePath) LIKE '%.mp4')) OR (photo.mediaType = 'image' AND photo.orientation IN (:...orientations)))`,
-        { orientations: ['landscape', 'square'], mp4Only: mp4Only ? 1 : 0 },
+        `((photo.mediaType = 'video' AND :includeVideos = 1 AND (:mp4Only = 0 OR LOWER(photo.relativePath) LIKE '%.mp4')) OR (photo.mediaType = 'image' AND photo.orientation IN (:...orientations)))`,
+        {
+          orientations: ['landscape', 'square'],
+          mp4Only: mp4Only ? 1 : 0,
+          includeVideos: includeVideos ? 1 : 0,
+        },
       );
     if (sourceId !== null)
       qb.andWhere('photo.sourceId = :sourceId', { sourceId });
@@ -1123,13 +1181,38 @@ export class SlideshowStateService implements OnApplicationBootstrap {
     sourceId: number | null,
     avoidRepeats: boolean,
     mp4Only: boolean,
+    playbackMode: PlaybackMode,
   ): Promise<Photo[]> {
+    const includeVideos = playbackMode !== 'images-only';
     const qb = this.photoRepo
       .createQueryBuilder('photo')
       .where(
-        `((photo.mediaType = 'video' AND (:mp4Only = 0 OR LOWER(photo.relativePath) LIKE '%.mp4')) OR (photo.mediaType = 'image' AND photo.orientation IN (:...orientations)))`,
-        { orientations: ['landscape', 'square'], mp4Only: mp4Only ? 1 : 0 },
+        `((photo.mediaType = 'video' AND :includeVideos = 1 AND (:mp4Only = 0 OR LOWER(photo.relativePath) LIKE '%.mp4')) OR (photo.mediaType = 'image' AND photo.orientation IN (:...orientations)))`,
+        {
+          orientations: ['landscape', 'square'],
+          mp4Only: mp4Only ? 1 : 0,
+          includeVideos: includeVideos ? 1 : 0,
+        },
       );
+    if (sourceId !== null)
+      qb.andWhere('photo.sourceId = :sourceId', { sourceId });
+    this.applyOrdering(this.excludeUnavailable(qb), avoidRepeats).limit(limit);
+    return qb.getMany();
+  }
+
+  private async randomVideos(
+    limit: number,
+    sourceId: number | null,
+    avoidRepeats: boolean,
+    mp4Only: boolean,
+  ): Promise<Photo[]> {
+    const qb = this.photoRepo
+      .createQueryBuilder('photo')
+      .where('photo.mediaType = :mediaType', { mediaType: 'video' })
+      .andWhere('(:mp4Only = 0 OR LOWER(photo.relativePath) LIKE :mp4Suffix)', {
+        mp4Only: mp4Only ? 1 : 0,
+        mp4Suffix: '%.mp4',
+      });
     if (sourceId !== null)
       qb.andWhere('photo.sourceId = :sourceId', { sourceId });
     this.applyOrdering(this.excludeUnavailable(qb), avoidRepeats).limit(limit);

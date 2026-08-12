@@ -22,6 +22,7 @@ import type {
   GrainEffect,
   PhotoCaptionPosition,
   PhotoFrameStyle,
+  PlaybackMode,
   ShuffleMode,
   TransitionEffect,
 } from '../../api/types';
@@ -86,6 +87,7 @@ export function SettingsPage() {
 
   const [effects, setEffects] = useState<TransitionEffect[]>(['fade']);
   const [imageSeconds, setImageSeconds] = useState(6);
+  const [playbackMode, setPlaybackMode] = useState<PlaybackMode>('all');
   const [transitionMs, setTransitionMs] = useState(1200);
   const [cinematicChance, setCinematicChance] = useState(0);
   const [kenBurnsChance, setKenBurnsChance] = useState(0);
@@ -108,6 +110,7 @@ export function SettingsPage() {
     if (!settings) return;
     setEffects(settings.transitionEffects);
     setImageSeconds(Math.round(settings.imageDurationMs / 1000));
+    setPlaybackMode(settings.playbackMode);
     setTransitionMs(settings.transitionDurationMs);
     setCinematicChance(settings.cinematicChance);
     setKenBurnsChance(settings.kenBurnsChance ?? 40);
@@ -183,6 +186,7 @@ export function SettingsPage() {
     updateMutation.mutate({
       transitionEffects: effects,
       imageDurationMs: imageSeconds * 1000,
+      playbackMode,
       transitionDurationMs: transitionMs,
       cinematicChance,
       kenBurnsChance,
@@ -203,6 +207,11 @@ export function SettingsPage() {
   const shuffleModeOptions: { value: ShuffleMode; label: string }[] = [
     { value: 'all', label: t('options.shuffle.all') },
     { value: 'source-rotation', label: t('options.shuffle.sourceRotation') },
+  ];
+  const playbackModeOptions: { value: PlaybackMode; label: string }[] = [
+    { value: 'all', label: t('options.playbackMode.all') },
+    { value: 'images-only', label: t('options.playbackMode.imagesOnly') },
+    { value: 'videos-only', label: t('options.playbackMode.videosOnly') },
   ];
   const frameStyleOptions: { value: PhotoFrameStyle; label: string }[] = [
     { value: 'none', label: t('options.frames.none') },
@@ -275,6 +284,15 @@ export function SettingsPage() {
             max={120}
             value={imageSeconds}
             onChange={(v) => setImageSeconds(Number(v) || 1)}
+          />
+
+          <Select
+            label={t('settings.playbackMode')}
+            description={t('settings.playbackModeDescription')}
+            data={playbackModeOptions}
+            value={playbackMode}
+            onChange={(v) => v && setPlaybackMode(v as PlaybackMode)}
+            allowDeselect={false}
           />
 
           <Select

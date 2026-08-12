@@ -38,6 +38,8 @@ import { SchedulerQuickScan1783441000000 } from './1783441000000-SchedulerQuickS
 import { EnabledFileFormats1783442000000 } from './1783442000000-EnabledFileFormats';
 import { SchedulerQuickScanRepair1783443000000 } from './1783443000000-SchedulerQuickScanRepair';
 import { KenBurnsChance1783444000000 } from './1783444000000-KenBurnsChance';
+import { PlaybackMode1783445000000 } from './1783445000000-PlaybackMode';
+import { VideoRandomSegment1783446000000 } from './1783446000000-VideoRandomSegment';
 
 export const migrations = [
   InitialSchema1783265469029,
@@ -80,4 +82,6 @@ export const migrations = [
   EnabledFileFormats1783442000000,
   SchedulerQuickScanRepair1783443000000,
   KenBurnsChance1783444000000,
+  PlaybackMode1783445000000,
+  VideoRandomSegment1783446000000,
 ];

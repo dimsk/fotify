@@ -61,6 +61,8 @@
     "kenBurnsChance": "Ken Burns probability (%)",
     "kenBurnsChanceDescription": "Randomly applies a slow zoom (Ken Burns) to single landscape pictures. Portraits (shown as triples), videos, and collages never zoom.",
     "imageDuration": "Display duration per image (seconds)",
+    "playbackMode": "Playback mode",
+    "playbackModeDescription": "Which media types are shown in the slideshow.",
     "playbackOrder": "Playback order",
     "avoidRepeats": "Repeat shown photos only after a full pass",
     "avoidRepeatsDescription": "When enabled, never-shown photos are preferred; already-shown photos return only after all photos were shown once.",
@@ -111,6 +113,11 @@
     "shuffle": {
       "all": "Shuffle all folders",
       "sourceRotation": "Rotate folders (1 hour each)"
+    },
+    "playbackMode": {
+      "all": "Videos and pictures",
+      "imagesOnly": "Only pictures",
+      "videosOnly": "Only videos"
     },
     "frames": {
       "none": "No frame",
@@ -208,12 +215,13 @@
     "compatibilityDirectCommon": "Direct-play common formats",
     "compatibilityNormalize": "Normalize common formats to H.264 MP4",
     "duration": "Playback duration",
-    "durationDescription": "Choose whether clips play completely, follow the picture duration, use a random picture-length segment, or stop at a maximum.",
+    "durationDescription": "Choose whether clips play completely, follow the picture duration, or stop at a maximum. A clip that is shorter than the chosen duration always ends the slide when it ends.",
     "durationFull": "Play full clip",
     "durationPhoto": "Use picture duration",
-    "durationRandomSegment": "Random segment using picture duration",
     "durationCapped": "Cap clip duration",
     "maxDuration": "Maximum duration (seconds)",
+    "randomSegment": "Random segment",
+    "randomSegmentDescription": "Starts long videos at a random position and plays a segment of the configured duration instead of always starting at the beginning.",
     "mutedNotice": "Videos always play muted to ensure reliable unattended autoplay.",
     "rescanNotice": "Run a source rescan after upgrading Fotify to discover existing video files.",
     "saved": "Video settings saved",

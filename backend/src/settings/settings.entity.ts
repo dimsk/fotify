@@ -18,6 +18,7 @@ export type TransitionEffect =
   | 'dustParticles'
   | 'random';
 export type ShuffleMode = 'all' | 'source-rotation';
+export type PlaybackMode = 'all' | 'images-only' | 'videos-only';
 export type PhotoFrameStyle = 'none' | 'thin' | 'polaroid';
 export type PhotoCaptionPosition = 'bottom-left' | 'bottom-right';
 export type GrainEffect = 'none' | 'light' | 'strong' | 'extreme';
@@ -32,8 +33,7 @@ export type VideoCompatibilityMode =
 export type VideoDurationMode =
   | 'full'
   | 'photo'
-  | 'capped'
-  | 'random-segment';
+  | 'capped';
 
 export type CollageLayoutType =
   | 'heartCutout'
@@ -103,16 +103,43 @@ export class Settings {
   @Column({ type: 'int', default: 25000 })
   imageDurationMs: number;
 
+  /**
+   * Which media kinds the slideshow picks from:
+   * 'all': photos and videos (default),
+   * 'images-only': no videos are ever picked,
+   * 'videos-only': no photos are ever picked (videos always render as
+   * single slides; collages and portrait triples are skipped).
+   */
+  @Column({ type: 'text', default: 'all' })
+  playbackMode: PlaybackMode;
+
   /** How discovered video files are prepared for browser playback. */
-  @Column({ type: 'text', default: 'normalize' })
+  @Column({ type: 'text', default: 'direct-common' })
   videoCompatibilityMode: VideoCompatibilityMode;
 
-  /** Whether clips use their full, photo, or capped duration. */
-  @Column({ type: 'text', default: 'full' })
+  /**
+   * How long a single video slide stays on screen:
+   * 'full': the whole clip; 'photo': the image display duration;
+   * 'capped': at most videoMaxDurationMs. A clip shorter than the chosen
+   * duration always ends the slide when it ends — never loops or holds its
+   * last frame.
+   */
+  @Column({ type: 'text', default: 'photo' })
   videoDurationMode: VideoDurationMode;
 
   @Column({ type: 'int', default: 30000 })
   videoMaxDurationMs: number;
+
+  /**
+   * When true, a long video starts at a random offset and plays for the
+   * image display duration as a "random segment" instead of from the
+   * beginning. Independent of videoDurationMode: the segment length comes
+   * from that mode (imageDurationMs for 'photo', videoMaxDurationMs for
+   * 'capped', the clip length for 'full' — which leaves no room for an
+   * offset, so the toggle only meaningfully combines with 'photo'/'capped').
+   */
+  @Column({ type: 'boolean', default: true })
+  videoRandomSegmentEnabled: boolean;
 
   /** If true, never-shown photos are preferred over already-shown ones. */
   @Column({ type: 'boolean', default: true })
