@@ -49,6 +49,15 @@ export class LocalFileProvider implements FileProvider {
     return stat.size;
   }
 
+  /**
+   * Absolute on-disk path of a source file. Lets callers that need a real
+   * path (e.g. ffprobe) work directly on the original instead of copying the
+   * file into a temp directory first.
+   */
+  resolvePath(relativePath: string): string {
+    return this.resolveSafe(relativePath);
+  }
+
   private resolveSafe(relativePath: string): string {
     const target = resolve(join(this.root, relativePath));
     if (target !== this.root && !target.startsWith(this.root + sep)) {

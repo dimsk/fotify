@@ -1,13 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'crypto';
-import { createWriteStream, promises as fs } from 'fs';
+import { createReadStream, createWriteStream, promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { extname, join } from 'path';
 import { spawn } from 'child_process';
-import { Transform } from 'stream';
+import { Readable, Transform } from 'stream';
 import { pipeline } from 'stream/promises';
 import pLimit from 'p-limit';
 import { FileProvider } from '../file-providers/file-provider.interface';
+import { LocalFileProvider } from '../file-providers/local-file-provider';
 import { PhotoOrientation } from '../photos/photo.entity';
 
 export interface VideoMetadata {
@@ -22,33 +23,106 @@ export interface VideoMetadata {
 
 const transcodeLimiter = pLimit(1);
 
+const TEMP_PREFIX = 'fotify-video-';
+/** Temp dirs from scans killed mid-flight (crash, restart) are fair game after this. */
+const STALE_TEMP_AGE_MS = 60 * 60 * 1000;
+
 @Injectable()
 export class VideoProcessingService {
+  private readonly logger = new Logger(VideoProcessingService.name);
+
+  /**
+   * Hands `work` a local file path for the given source file plus the file's
+   * SHA-256 hash. Only needed by the `normalize` compatibility path, where
+   * ffmpeg requires a seekable local input:
+   *
+   * - Local sources are used straight from their original path — no copy.
+   * - Network sources (SMB) are streamed into a temp directory that is
+   *   deleted as soon as `work` settles — even when `work` throws. (Hard
+   *   process kills can still leave a temp dir behind;
+   *   {@link cleanStaleTempDirs} sweeps those.)
+   *
+   * Scanning does NOT go through here anymore — it hashes and probes via
+   * streaming passes (see ScanService.importVideo).
+   */
   async withMaterializedFile<T>(
     provider: FileProvider,
     relativePath: string,
     work: (path: string, hash: string) => Promise<T>,
   ): Promise<T> {
-    const dir = await fs.mkdtemp(join(tmpdir(), 'fotify-video-'));
+    if (provider instanceof LocalFileProvider) {
+      const path = provider.resolvePath(relativePath);
+      const hash = await this.hashStream(
+        provider.createReadStream(relativePath),
+      );
+      return work(path, hash);
+    }
+
+    const dir = await fs.mkdtemp(join(tmpdir(), TEMP_PREFIX));
     const path = join(dir, `source${extname(relativePath).toLowerCase()}`);
+    try {
+      const hash = await this.hashStream(
+        provider.createReadStream(relativePath),
+        createWriteStream(path),
+      );
+      return await work(path, hash);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+
+  /**
+   * Removes temp dirs left behind by scans that never reached their cleanup
+   * (process killed mid-scan). Called once on module init and defensive: only
+   * dirs older than STALE_TEMP_AGE_MS are touched, so a concurrent active
+   * scan is never disturbed.
+   */
+  async onModuleInit(): Promise<void> {
+    await this.cleanStaleTempDirs();
+  }
+
+  private async cleanStaleTempDirs(): Promise<void> {
+    let entries;
+    try {
+      entries = await fs.readdir(tmpdir(), { withFileTypes: true });
+    } catch {
+      return;
+    }
+    const cutoff = Date.now() - STALE_TEMP_AGE_MS;
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !entry.name.startsWith(TEMP_PREFIX)) continue;
+      const path = join(tmpdir(), entry.name);
+      try {
+        const stat = await fs.stat(path);
+        if (stat.mtimeMs < cutoff) {
+          await fs.rm(path, { recursive: true, force: true });
+          this.logger.log(`Removed stale video temp dir ${entry.name}`);
+        }
+      } catch {
+        // best effort — a dir that can't be stated/removed is left for the OS
+      }
+    }
+  }
+
+  /** SHA-256 over everything the readable yields, optionally teeing into a sink. */
+  async hashStream(
+    readable: Readable | Promise<Readable>,
+    sink?: NodeJS.WritableStream,
+  ): Promise<string> {
     const hash = createHash('sha256');
-    const hashStream = new Transform({
+    const hashTap = new Transform({
       transform(chunk, _encoding, callback) {
         hash.update(chunk);
         callback(null, chunk);
       },
     });
-
-    try {
-      await pipeline(
-        await provider.createReadStream(relativePath),
-        hashStream,
-        createWriteStream(path),
-      );
-      return await work(path, hash.digest('hex'));
-    } finally {
-      await fs.rm(dir, { recursive: true, force: true });
+    const source = await readable;
+    if (sink) {
+      await pipeline(source, hashTap, sink);
+    } else {
+      await pipeline(source, hashTap);
     }
+    return hash.digest('hex');
   }
 
   async probe(path: string, relativePath: string): Promise<VideoMetadata> {
@@ -61,6 +135,38 @@ export class VideoProcessingService {
       '-show_streams',
       path,
     ]);
+    return this.parseProbeOutput(output, relativePath);
+  }
+
+  /**
+   * ffprobe reading from stdin instead of a file path. Used for network
+   * sources (SMB), where no local path exists: ffprobe only consumes as much
+   * of the stream as it needs to find the metadata (usually the first MBs
+   * for mp4/mov), so this avoids materializing the whole file just to probe
+   * it. Formats whose index sits at the end of the file still stream the
+   * whole thing through ffprobe — but nothing ever touches the disk.
+   */
+  async probeStream(
+    readable: Readable,
+    relativePath: string,
+  ): Promise<VideoMetadata> {
+    const output = await runProcess(
+      'ffprobe',
+      [
+        '-v',
+        'error',
+        '-print_format',
+        'json',
+        '-show_format',
+        '-show_streams',
+        'pipe:0',
+      ],
+      readable,
+    );
+    return this.parseProbeOutput(output, relativePath);
+  }
+
+  private parseProbeOutput(output: string, relativePath: string): VideoMetadata {
     const data = JSON.parse(output) as any;
     const stream = data.streams?.find((item: any) => item.codec_type === 'video');
     const streamDuration = Number(stream?.duration);
@@ -153,9 +259,15 @@ export function mimeTypeFor(path: string): string {
   }
 }
 
-function runProcess(command: string, args: string[]): Promise<string> {
+function runProcess(
+  command: string,
+  args: string[],
+  input?: Readable,
+): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(command, args, {
+      stdio: [input ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+    });
     let stdout = '';
     let stderr = '';
     child.stdout.setEncoding('utf8');
@@ -167,5 +279,11 @@ function runProcess(command: string, args: string[]): Promise<string> {
       if (code === 0) resolve(stdout);
       else reject(new Error(stderr.trim() || `${command} exited with code ${code}`));
     });
+    if (input) {
+      // ffprobe stops reading once it has the metadata it needs and exits;
+      // the resulting EPIPE on our writes is expected, not a failure.
+      child.stdin.on('error', () => undefined);
+      input.pipe(child.stdin);
+    }
   });
 }

@@ -601,75 +601,81 @@ export class ScanService implements OnApplicationBootstrap {
       return;
     }
 
-    await this.videoProcessing.withMaterializedFile(
-      provider,
+    // Hash and probe run as two independent streaming passes straight off the
+    // provider — no temp copy on disk, regardless of source type. For local
+    // files that's just two sequential reads; for SMB the bytes flow through
+    // ffprobe's stdin (probeStream) so even multi-GB clips never materialize
+    // in /tmp.
+    const fileHash = await this.videoProcessing.hashStream(
+      provider.createReadStream(file.relativePath),
+    );
+    const metadata = await this.videoProcessing.probeStream(
+      await provider.createReadStream(file.relativePath),
       file.relativePath,
-      async (path, fileHash) => {
-        const metadata = await this.videoProcessing.probe(path, file.relativePath);
-        if (existing) {
-          existingByPath.delete(file.relativePath);
-          if (existing.mediaType === 'video' && existing.fileHash === fileHash) {
-            await this.photoRepo.update(existing.id, {
-              sourceFileSize: file.size,
-              sourceModifiedAt: file.modifiedAt,
-            });
-            return;
-          }
-        }
+    );
 
-        if (seenHashes.has(fileHash)) {
-          await this.claimMovedFile(
-            source.id,
-            file,
-            fileHash,
-            'video',
-            existing,
-            existingByPath,
-            seenHashes,
-          );
-          return;
-        }
-
-        const video = this.photoRepo.create({
-          sourceId: source.id,
-          relativePath: file.relativePath,
-          mediaType: 'video',
-          fileHash,
-          width: metadata.width,
-          height: metadata.height,
-          orientation: metadata.orientation,
-          durationMs: metadata.durationMs,
-          mimeType: metadata.mimeType,
-          videoCodec: metadata.codec,
-          videoContainer: metadata.container,
+    if (existing) {
+      existingByPath.delete(file.relativePath);
+      if (existing.mediaType === 'video' && existing.fileHash === fileHash) {
+        await this.photoRepo.update(existing.id, {
           sourceFileSize: file.size,
           sourceModifiedAt: file.modifiedAt,
-          capturedAt: null,
-          lens: null,
-          aperture: null,
-          lensApertureScanned: true,
-          lensApertureCheckedAt: new Date(),
-          gpsLatitude: null,
-          gpsLongitude: null,
-          locationCity: null,
-          locationCountry: null,
-          locationScanned: true,
-          locationCheckedAt: new Date(),
-          cachedDisplayPath: null,
-          cachedVideoMode: null,
-          cachedAt: null,
-          lastShownAt: null,
         });
-        await this.photoRepo.save(video);
-        if (existing) {
-          await this.photoRepo.remove(existing);
-          notifyPhotosDeleted([existing.id]);
-          await this.cacheStorage.delete(existing.cachedDisplayPath);
-          seenHashes.delete(existing.fileHash);
-        }
-        seenHashes.add(fileHash);
-      },
-    );
+        return;
+      }
+    }
+
+    if (seenHashes.has(fileHash)) {
+      await this.claimMovedFile(
+        source.id,
+        file,
+        fileHash,
+        'video',
+        existing,
+        existingByPath,
+        seenHashes,
+      );
+      return;
+    }
+
+    const video = this.photoRepo.create({
+      sourceId: source.id,
+      relativePath: file.relativePath,
+      mediaType: 'video',
+      fileHash,
+      width: metadata.width,
+      height: metadata.height,
+      orientation: metadata.orientation,
+      durationMs: metadata.durationMs,
+      mimeType: metadata.mimeType,
+      videoCodec: metadata.codec,
+      videoContainer: metadata.container,
+      sourceFileSize: file.size,
+      sourceModifiedAt: file.modifiedAt,
+      capturedAt: null,
+      lens: null,
+      aperture: null,
+      lensApertureScanned: true,
+      lensApertureCheckedAt: new Date(),
+      gpsLatitude: null,
+      gpsLongitude: null,
+      locationCity: null,
+      locationCountry: null,
+      locationScanned: true,
+      locationCheckedAt: new Date(),
+      cachedDisplayPath: null,
+      cachedVideoMode: null,
+      cachedAt: null,
+      lastShownAt: null,
+    });
+    await this.photoRepo.save(video);
+    if (existing) {
+      await this.photoRepo.remove(existing);
+      notifyPhotosDeleted([existing.id]);
+      await this.cacheStorage.delete(existing.cachedDisplayPath);
+      seenHashes.delete(existing.fileHash);
+    }
+    seenHashes.add(fileHash);
   }
 
   private async claimMovedFile(
