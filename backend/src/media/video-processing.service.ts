@@ -116,6 +116,10 @@ export class VideoProcessingService {
         callback(null, chunk);
       },
     });
+    // A Transform as pipeline's last stage stays in paused mode, so the
+    // source stalls after its first buffered chunks (observed: reads freeze
+    // at exactly 2×highWaterMark). Drain it explicitly so data keeps flowing.
+    hashTap.resume();
     const source = await readable;
     if (sink) {
       await pipeline(source, hashTap, sink);
