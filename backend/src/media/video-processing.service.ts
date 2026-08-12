@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
-import { createReadStream, createWriteStream, promises as fs } from 'fs';
+import { createWriteStream, promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { extname, join } from 'path';
 import { spawn } from 'child_process';
@@ -24,61 +24,22 @@ const transcodeLimiter = pLimit(1);
 
 @Injectable()
 export class VideoProcessingService {
-  /**
-   * Copies a (possibly remote) source file to a local temp file and hands it
-   * to `work` together with its sha256 hash. When `maxBytes` is given, only
-   * the first `maxBytes` of the source are transferred — used to avoid
-   * pulling a multi-hundred-MB source over the network when only a short
-   * segment near the start is actually transcoded. A truncated prefix is not
-   * hashable against the full source, so `work` receives `null` as the hash
-   * in that case and must skip the change-detection hash comparison.
-   */
   async withMaterializedFile<T>(
     provider: FileProvider,
     relativePath: string,
-    work: (path: string, hash: string | null) => Promise<T>,
-    maxBytes?: number,
+    work: (path: string, hash: string) => Promise<T>,
   ): Promise<T> {
     const dir = await fs.mkdtemp(join(tmpdir(), 'fotify-video-'));
     const path = join(dir, `source${extname(relativePath).toLowerCase()}`);
+    const hash = createHash('sha256');
+    const hashStream = new Transform({
+      transform(chunk, _encoding, callback) {
+        hash.update(chunk);
+        callback(null, chunk);
+      },
+    });
 
     try {
-      if (maxBytes && maxBytes > 0) {
-        const out = createWriteStream(path);
-        let written = 0;
-        // Counting stream that destroys itself (and thus aborts the upstream
-        // network read) once enough bytes have flowed through.
-        const counter = new Transform({
-          transform(chunk, _encoding, callback) {
-            written += chunk.length;
-            if (written >= maxBytes) {
-              callback(null, chunk);
-              counter.destroy();
-              return;
-            }
-            callback(null, chunk);
-          },
-        });
-        const source = await provider.createReadStream(relativePath);
-        try {
-          await pipeline(source, counter, out);
-        } catch {
-          // premature close from the counter is expected — treat as done
-        }
-        const stat = await fs.stat(path).catch(() => null);
-        if (stat && stat.size > 0) {
-          return await work(path, null);
-        }
-        await fs.rm(path, { force: true });
-      }
-
-      const hash = createHash('sha256');
-      const hashStream = new Transform({
-        transform(chunk, _encoding, callback) {
-          hash.update(chunk);
-          callback(null, chunk);
-        },
-      });
       await pipeline(
         await provider.createReadStream(relativePath),
         hashStream,
@@ -145,27 +106,7 @@ export class VideoProcessingService {
     };
   }
 
-  /**
-   * Re-encodes a video for reliable, low-cost browser playback. The output
-   * is always capped at 1080p / 30fps regardless of the source — a slideshow
-   * gains nothing from 60fps or 4K, but both multiply the client's decode
-   * load and are the usual cause of stutter on weaker display hardware.
-   *
-   * When a segment (startOffsetMs + durationMs) is given, only that slice is
-   * extracted instead of transcoding the whole file — for a 1-hour source
-   * shown for 20s this turns a ~15-minute encode into a few seconds. The
-   * seek is accurate (placed after -i), so the cut starts exactly on
-   * startOffsetMs even mid-GOP.
-   */
-  async normalize(
-    inputPath: string,
-    outputPath: string,
-    segment?: { startOffsetMs: number; durationMs: number },
-  ): Promise<void> {
-    const seekArgs =
-      segment && segment.durationMs > 0
-        ? ['-ss', (segment.startOffsetMs / 1000).toFixed(3), '-t', (segment.durationMs / 1000).toFixed(3)]
-        : [];
+  async normalize(inputPath: string, outputPath: string): Promise<void> {
     await transcodeLimiter(() =>
       runProcess('ffmpeg', [
         '-y',
@@ -173,16 +114,11 @@ export class VideoProcessingService {
         'error',
         '-i',
         inputPath,
-        ...seekArgs,
         '-map',
         '0:v:0',
         '-an',
         '-vf',
-        // Cap the long edge at 1920px (downscale only, never upscale) and
-        // keep dimensions even for libx264/yuv420p.
-        "scale='if(gt(iw,ih),min(iw,1920),-2)':'if(gt(iw,ih),-2,min(ih,1920))':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2",
-        '-r',
-        '30',
+        'scale=trunc(iw/2)*2:trunc(ih/2)*2',
         '-c:v',
         'libx264',
         '-preset',

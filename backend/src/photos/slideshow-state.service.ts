@@ -576,58 +576,19 @@ export class SlideshowStateService implements OnApplicationBootstrap {
       const compatibilityMode =
         settings?.videoCompatibilityMode ??
         DEFAULT_SETTINGS.videoCompatibilityMode!;
-
-      // Collages carry more to look at (up to 12 photos) than a single or
-      // triple slide, so they stay on screen twice as long.
-      const baseDuration =
-        settings?.imageDurationMs ?? DEFAULT_SETTINGS.imageDurationMs!;
-      const singleVideo =
-        plan.type === 'single' && plan.photos[0]?.mediaType === 'video'
-          ? plan.photos[0]
-          : null;
-      const imageDurationMs = singleVideo
-        ? this.videoSlideDuration(singleVideo, settings, baseDuration)
-        : plan.type === 'collage'
-          ? baseDuration * 2
-          : baseDuration;
-
-      // Resolve the random-segment offset before preparing the cache, so a
-      // normalize-mode extraction knows exactly which slice to produce.
-      const randomSegment =
-        settings?.videoRandomSegmentEnabled ??
-        DEFAULT_SETTINGS.videoRandomSegmentEnabled!;
-      if (singleVideo && randomSegment) {
-        const maxOffset = Math.max(
-          0,
-          (singleVideo.durationMs ?? imageDurationMs) - imageDurationMs,
-        );
-        if (
-          videoSegmentDurationMs !== imageDurationMs ||
-          videoStartOffsetMs > maxOffset
-        ) {
-          videoStartOffsetMs = this.randomVideoStartOffset(
-            plan,
-            imageDurationMs,
-          );
-        }
-      } else {
-        videoStartOffsetMs = 0;
-      }
-
-      if (singleVideo && compatibilityMode === 'normalize') {
-        // Extract only the shown slice (a few seconds) rather than
-        // transcoding the whole source — for an hours-long remote video this
-        // turns a ~15-minute encode into seconds, and the small local clip is
-        // what actually fixes network-streaming stutter. The resulting clip
-        // starts at 0, so the client plays it from the beginning.
+      if (
+        compatibilityMode === 'normalize' &&
+        plan.type === 'single' &&
+        plan.photos[0]?.mediaType === 'video'
+      ) {
+        // Direct-play modes stream straight from the source (see
+        // MediaController.streamVideoFromSource) — there is no cache file to
+        // prepare, so the advance must not block on ensureCached.
         try {
-          await this.videoCacheService.ensureCached(singleVideo, {
-            startOffsetMs: videoStartOffsetMs,
-            durationMs: imageDurationMs,
-          });
+          await this.videoCacheService.ensureCached(plan.photos[0]);
         } catch (error) {
           this.logger.warn(
-            `Skipping video ${singleVideo.id}: ${(error as Error).message}`,
+            `Skipping video ${plan.photos[0].id}: ${(error as Error).message}`,
           );
           plan = { type: 'empty', photos: [] };
           videoPreparationFailed = true;
@@ -669,10 +630,46 @@ export class SlideshowStateService implements OnApplicationBootstrap {
           );
       }
 
-      // A failed preparation collapses the slide to a near-instant advance.
-      const finalImageDurationMs = videoPreparationFailed
-        ? MIN_POLL_MS
-        : imageDurationMs;
+      // Collages carry more to look at (up to 12 photos) than a single or
+      // triple slide, so they stay on screen twice as long.
+      const baseDuration =
+        settings?.imageDurationMs ?? DEFAULT_SETTINGS.imageDurationMs!;
+      const singleVideo =
+        plan.type === 'single' && plan.photos[0]?.mediaType === 'video'
+          ? plan.photos[0]
+          : null;
+      const imageDurationMs = singleVideo
+        ? this.videoSlideDuration(singleVideo, settings, baseDuration)
+        : videoPreparationFailed
+          ? MIN_POLL_MS
+          : plan.type === 'collage'
+          ? baseDuration * 2
+          : baseDuration;
+
+      // A random segment starts a long video partway through and shows it
+      // for the slide's display duration. The buffered offset/segment only
+      // stays valid while the configured segment length (the slide's
+      // duration) hasn't changed — if it has, re-roll.
+      const randomSegment =
+        settings?.videoRandomSegmentEnabled ??
+        DEFAULT_SETTINGS.videoRandomSegmentEnabled!;
+      if (singleVideo && randomSegment) {
+        const maxOffset = Math.max(
+          0,
+          (singleVideo.durationMs ?? imageDurationMs) - imageDurationMs,
+        );
+        if (
+          videoSegmentDurationMs !== imageDurationMs ||
+          videoStartOffsetMs > maxOffset
+        ) {
+          videoStartOffsetMs = this.randomVideoStartOffset(
+            plan,
+            imageDurationMs,
+          );
+        }
+      } else {
+        videoStartOffsetMs = 0;
+      }
 
       // Ken Burns (slow zoom) is a per-photo look like the cinematic grade,
       // not a transition effect — it only makes sense on a single landscape
@@ -689,14 +686,6 @@ export class SlideshowStateService implements OnApplicationBootstrap {
         Math.random() * 100 <
           (settings?.kenBurnsChance ?? DEFAULT_SETTINGS.kenBurnsChance!);
 
-      // A normalized clip is a self-contained file that starts at 0, so the
-      // client plays it from the beginning; only direct-play seeks into the
-      // original via videoStartOffsetMs.
-      const clientVideoStartOffsetMs =
-        singleVideo && randomSegment && compatibilityMode !== 'normalize'
-          ? videoStartOffsetMs
-          : 0;
-
       this.current = {
         slideId: String(this.tickCounter),
         plan,
@@ -704,10 +693,10 @@ export class SlideshowStateService implements OnApplicationBootstrap {
         lookCinematic,
         kenBurns,
         startedAt: singleVideo ? null : Date.now(),
-        imageDurationMs: finalImageDurationMs,
+        imageDurationMs,
         transitionDurationMs:
           settings?.transitionDurationMs ?? DEFAULT_SETTINGS.transitionDurationMs!,
-        videoStartOffsetMs: clientVideoStartOffsetMs,
+        videoStartOffsetMs: singleVideo && randomSegment ? videoStartOffsetMs : 0,
       };
 
       if (plan.photos.length > 0 && !singleVideo) {
@@ -785,7 +774,7 @@ export class SlideshowStateService implements OnApplicationBootstrap {
         videoStartOffsetMs,
         videoSegmentDurationMs,
       });
-      this.prewarm(plan, videoStartOffsetMs, videoSegmentDurationMs);
+      this.prewarm(plan);
     }
   }
 
@@ -818,15 +807,11 @@ export class SlideshowStateService implements OnApplicationBootstrap {
   }
 
   /** Fire-and-forget: generates cache well ahead of when this slide will actually be shown. */
-  private prewarm(
-    plan: InternalSlidePlan,
-    videoStartOffsetMs: number,
-    videoSegmentDurationMs: number | null,
-  ): void {
+  private prewarm(plan: InternalSlidePlan): void {
     for (const photo of plan.photos) {
       const work =
         photo.mediaType === 'video'
-          ? this.prewarmVideo(photo, videoStartOffsetMs, videoSegmentDurationMs)
+          ? this.prewarmVideo(photo)
           : this.photoCacheService.ensureCached(photo);
       work?.catch((err) => {
         this.logger.warn(
@@ -838,33 +823,15 @@ export class SlideshowStateService implements OnApplicationBootstrap {
 
   /**
    * Direct-play modes stream the original file at request time, so there is
-   * nothing to pre-generate — returns null to skip the warm-up entirely. In
-   * normalize mode the shown slice is pre-extracted so it's ready before the
-   * slide comes up.
+   * nothing to pre-generate — returns null to skip the warm-up entirely.
    */
-  private async prewarmVideo(
-    photo: Photo,
-    videoStartOffsetMs: number,
-    videoSegmentDurationMs: number | null,
-  ): Promise<unknown> {
+  private async prewarmVideo(photo: Photo): Promise<unknown> {
     const settings = await this.settingsRepo.findOneBy({ id: 1 });
     const mode =
       settings?.videoCompatibilityMode ??
       DEFAULT_SETTINGS.videoCompatibilityMode!;
     if (mode !== 'normalize') return null;
-    const baseDuration =
-      settings?.imageDurationMs ?? DEFAULT_SETTINGS.imageDurationMs!;
-    // The segment length mirrors advance(): the slide's display duration,
-    // which for a short video is its own length rather than the configured slot.
-    const displayDurationMs = this.videoSlideDuration(photo, settings, baseDuration);
-    const randomSegment =
-      settings?.videoRandomSegmentEnabled ??
-      DEFAULT_SETTINGS.videoRandomSegmentEnabled!;
-    const startOffsetMs = randomSegment ? videoStartOffsetMs : 0;
-    return this.videoCacheService.ensureCached(photo, {
-      startOffsetMs,
-      durationMs: displayDurationMs,
-    });
+    return this.videoCacheService.ensureCached(photo);
   }
 
   private markShown(ids: number[]): Promise<void> {
