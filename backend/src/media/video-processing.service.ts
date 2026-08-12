@@ -32,7 +32,7 @@ const STALE_TEMP_AGE_MS = 60 * 60 * 1000;
  * would hold the sequential scan hostage (a 1 TiB file needs >1h just to
  * read), and a photo-frame slideshow can't sensibly play them anyway.
  */
-export const MAX_VIDEO_FILE_SIZE_BYTES = 50 * 1024 * 1024 * 1024; // 50 GiB
+export const MAX_VIDEO_FILE_SIZE_BYTES = 5 * 1024 * 1024 * 1024; // 5 GiB
 
 /**
  * Derives the video's identity hash from its size and modification time
