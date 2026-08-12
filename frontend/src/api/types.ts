@@ -431,6 +431,7 @@ export interface RecentMedia {
   orientation: string;
   capturedAt: string | null;
   lastShownAt: string;
+  relativePath: string;
   locationCity: string | null;
   locationCountry: string | null;
 }

@@ -9,6 +9,7 @@ import {
   Stack,
   Text,
   Title,
+  Tooltip,
 } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { Film, History } from 'lucide-react';
@@ -92,6 +93,11 @@ export function RecentMediaPage() {
                     {locationLabel(media)}
                   </Text>
                 )}
+                <Tooltip label={media.relativePath} multiline maw={320} withinPortal>
+                  <Text size="xs" c="dimmed" lineClamp={1} style={{ wordBreak: 'break-all' }}>
+                    {media.relativePath}
+                  </Text>
+                </Tooltip>
                 <Text size="xs" c="dimmed" lineClamp={1}>
                   {t('recent.shownAt')}: {new Date(media.lastShownAt).toLocaleString()}
                 </Text>

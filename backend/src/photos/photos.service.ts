@@ -36,6 +36,7 @@ export interface RecentMedia {
   orientation: string;
   capturedAt: string | null;
   lastShownAt: string;
+  relativePath: string;
   locationCity: string | null;
   locationCountry: string | null;
 }
@@ -93,6 +94,7 @@ export class PhotosService {
       orientation: photo.orientation,
       capturedAt: photo.capturedAt ? photo.capturedAt.toISOString() : null,
       lastShownAt: photo.lastShownAt!.toISOString(),
+      relativePath: photo.relativePath,
       locationCity: photo.locationCity,
       locationCountry: photo.locationCountry,
     }));
