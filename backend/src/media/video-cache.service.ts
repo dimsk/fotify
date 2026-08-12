@@ -14,6 +14,7 @@ import {
   mimeTypeFor,
   VideoProcessingService,
 } from './video-processing.service';
+import { videoDisplayDuration } from '../photos/video-playback.util';
 
 export interface CachedVideo {
   path: string;
@@ -21,7 +22,24 @@ export interface CachedVideo {
   mode: VideoCompatibilityMode;
 }
 
+/**
+ * Identifies a short slice of a video to cache instead of the whole file.
+ * Only used in 'normalize' mode: extracting the shown segment (a few
+ * seconds) is dramatically cheaper than transcoding an hours-long source,
+ * and the result is a small local clip — which is exactly what fixes
+ * network-streaming stutter for long remote videos.
+ */
+export interface VideoSegmentSpec {
+  startOffsetMs: number;
+  durationMs: number;
+}
+
 const CACHE_TOUCH_INTERVAL_MS = 60_000;
+// How much of the source to pull over the network when extracting a segment:
+// the requested span plus a safety margin, converted to bytes at a generous
+// assumed bitrate. Anything beyond the cut is never needed.
+const SEGMENT_SOURCE_HEADROOM_MS = 5_000;
+const ASSUMED_SOURCE_BYTES_PER_MS = 2_000; // ~16 Mbps, above typical sources
 
 @Injectable()
 export class VideoCacheService {
@@ -38,15 +56,55 @@ export class VideoCacheService {
     private readonly videoProcessing: VideoProcessingService,
   ) {}
 
-  async ensureCached(video: Photo): Promise<CachedVideo> {
+  /**
+   * The slice of a video that the slideshow will actually show, derived from
+   * the current duration/random-segment settings. Centralized here so the
+   * advance path, the lookahead prewarm, and the /display endpoint all
+   * resolve to the exact same cached clip for the same slide.
+   */
+  async segmentFor(
+    video: Photo,
+    startOffsetMs: number,
+  ): Promise<VideoSegmentSpec> {
+    const settings = await this.settingsRepo.findOneBy({ id: 1 });
+    const baseDuration =
+      settings?.imageDurationMs ?? DEFAULT_SETTINGS.imageDurationMs!;
+    const durationMode =
+      settings?.videoDurationMode ?? DEFAULT_SETTINGS.videoDurationMode!;
+    const maxDurationMs =
+      settings?.videoMaxDurationMs ?? DEFAULT_SETTINGS.videoMaxDurationMs!;
+    const randomSegment =
+      settings?.videoRandomSegmentEnabled ??
+      DEFAULT_SETTINGS.videoRandomSegmentEnabled!;
+    const durationMs = videoDisplayDuration(
+      durationMode,
+      video.durationMs ?? baseDuration,
+      baseDuration,
+      maxDurationMs,
+    );
+    return {
+      startOffsetMs: randomSegment ? startOffsetMs : 0,
+      durationMs,
+    };
+  }
+
+  async ensureCached(video: Photo, segment?: VideoSegmentSpec): Promise<CachedVideo> {
     if (video.mediaType !== 'video') throw new Error('Media is not a video');
     const settings = await this.settingsRepo.findOneBy({ id: 1 });
     const mode =
       settings?.videoCompatibilityMode ??
       DEFAULT_SETTINGS.videoCompatibilityMode!;
+    // Segments are only materialized in normalize mode — direct modes stream
+    // the original and never call this for playback. When no explicit segment
+    // is given (e.g. the /display endpoint), default to the start of the clip
+    // with the currently-configured duration so the served slice matches what
+    // the slideshow prepared.
+    const effectiveSegment =
+      mode === 'normalize' ? segment ?? (await this.segmentFor(video, 0)) : undefined;
+    const variant = this.variantFor(mode, effectiveSegment);
     if (
       video.cachedDisplayPath &&
-      video.cachedVideoMode === mode &&
+      video.cachedVideoMode === variant &&
       existsSync(video.cachedDisplayPath)
     ) {
       if (
@@ -78,7 +136,7 @@ export class VideoCacheService {
     const expectedPath = await this.cacheStorage.pathForHash(
       video.fileHash,
       extension,
-      mode,
+      variant,
     );
     if (existsSync(expectedPath)) {
       const cachedAt = new Date();
@@ -86,7 +144,7 @@ export class VideoCacheService {
         { id: video.id, fileHash: video.fileHash },
         {
           cachedDisplayPath: expectedPath,
-          cachedVideoMode: mode,
+          cachedVideoMode: variant,
           cachedAt,
         },
       );
@@ -95,7 +153,7 @@ export class VideoCacheService {
         throw new Error('Video was removed while reusing its cache');
       }
       video.cachedDisplayPath = expectedPath;
-      video.cachedVideoMode = mode;
+      video.cachedVideoMode = variant;
       video.cachedAt = cachedAt;
       return {
         path: expectedPath,
@@ -107,22 +165,46 @@ export class VideoCacheService {
       };
     }
 
-    const key = `${video.id}:${mode}`;
+    const key = `${video.id}:${variant}`;
     const existing = this.inflight.get(key);
     if (existing) return existing;
-    const work = this.generate(video, mode).finally(() =>
+    const work = this.generate(video, mode, effectiveSegment).finally(() =>
       this.inflight.delete(key),
     );
     this.inflight.set(key, work);
     return work;
   }
 
+  /**
+   * Cache-file variant for a (mode, segment) pair. Whole-file normalize keeps
+   * the plain mode name so existing caches stay valid; a segment gets a
+   * distinct variant keyed on offset+duration so each shown slice is cached
+   * separately (and reclaimed independently by the eviction sweep).
+   */
+  private variantFor(
+    mode: VideoCompatibilityMode,
+    segment?: VideoSegmentSpec,
+  ): string {
+    if (mode !== 'normalize' || !segment) return mode;
+    return `${mode}-seg${Math.round(segment.startOffsetMs)}-${Math.round(segment.durationMs)}`;
+  }
+
   private async generate(
     video: Photo,
     mode: VideoCompatibilityMode,
+    segment?: VideoSegmentSpec,
   ): Promise<CachedVideo> {
     const source = await this.sourceRepo.findOneBy({ id: video.sourceId });
     if (!source) throw new Error(`Source ${video.sourceId} no longer exists`);
+
+    const variant = this.variantFor(mode, segment);
+    // Only fetch the head of the source when we're going to cut a short
+    // segment out of it — hashing the full file would defeat the point.
+    const maxBytes =
+      mode === 'normalize' && segment
+        ? (segment.startOffsetMs + segment.durationMs + SEGMENT_SOURCE_HEADROOM_MS) *
+          ASSUMED_SOURCE_BYTES_PER_MS
+        : undefined;
 
     const provider = this.fileProviderFactory.forSource(source);
     await provider.connect();
@@ -131,7 +213,8 @@ export class VideoCacheService {
         provider,
         video.relativePath,
         async (inputPath, currentHash) => {
-          if (currentHash !== video.fileHash) {
+          // currentHash is null when only a truncated prefix was fetched.
+          if (currentHash !== null && currentHash !== video.fileHash) {
             await this.photoRepo.update(video.id, {
               sourceFileSize: null,
               sourceModifiedAt: null,
@@ -145,12 +228,16 @@ export class VideoCacheService {
           const target = await this.cacheStorage.pathForHash(
             video.fileHash,
             extension,
-            mode,
+            variant,
           );
           const temporaryTarget = `${target}.part${extension}`;
           try {
             if (mode === 'normalize') {
-              await this.videoProcessing.normalize(inputPath, temporaryTarget);
+              await this.videoProcessing.normalize(
+                inputPath,
+                temporaryTarget,
+                segment,
+              );
             } else {
               await copyFile(inputPath, temporaryTarget);
             }
@@ -172,7 +259,7 @@ export class VideoCacheService {
             { id: video.id, fileHash: video.fileHash },
             {
               cachedDisplayPath: target,
-              cachedVideoMode: mode,
+              cachedVideoMode: variant,
               cachedAt: new Date(),
             },
           );
@@ -180,14 +267,18 @@ export class VideoCacheService {
             await this.cacheStorage.delete(target);
             throw new Error('Video was removed while preparing its cache');
           }
+          const previousPath = video.cachedDisplayPath;
           video.cachedDisplayPath = target;
-          video.cachedVideoMode = mode;
+          video.cachedVideoMode = variant;
           video.cachedAt = new Date();
-          if (video.cachedDisplayPath && video.cachedDisplayPath !== target) {
-            await this.cacheStorage.delete(video.cachedDisplayPath);
+          // A different slice (or a previous whole-file encode) of the same
+          // video is now unreferenced — reclaim it. The eviction sweep is the
+          // backstop; this just frees it promptly.
+          if (previousPath && previousPath !== target) {
+            await this.cacheStorage.delete(previousPath);
           }
           this.logger.debug(
-            `Prepared video ${video.id} (${video.relativePath}) as ${mode}`,
+            `Prepared video ${video.id} (${video.relativePath}) as ${variant}`,
           );
           return {
             path: target,
@@ -198,6 +289,7 @@ export class VideoCacheService {
             mode,
           };
         },
+        maxBytes,
       );
     } finally {
       await provider.disconnect().catch(() => undefined);
