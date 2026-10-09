@@ -2,6 +2,8 @@
 
 Fotify is a self-hosted picture and video slideshow for a TV, kiosk display, Raspberry Pi, or home server. It scans local or SMB media sources, builds a shared server-side slideshow timeline, serves optimized pictures and video clips, and provides an admin UI for sources, effects, overlays, scheduling, calendar, and weather.
 
+![Uploading Bildschirmfoto 2026-10-09 um 16.08.47 (2).png…]()
+
 ## Features
 
 - Full-screen slideshow UI designed for unattended displays.
